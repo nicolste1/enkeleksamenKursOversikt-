@@ -1,6 +1,6 @@
 # Kravspesifikasjon — internt prosjektverktøy (Monday-erstatter)
 
-**Versjon:** 0.2 (skisse) · **Dato:** 2026-08-09 · **Status:** Til diskusjon
+**Versjon:** 0.3 (skisse) · **Dato:** 2026-08-10 · **Status:** Til diskusjon
 
 ## 1. Sammendrag
 
@@ -37,7 +37,7 @@ Internt verktøy for kursproduksjon og daglig drift i enkeleksamen, som erstatte
 | F2 | Admin kan opprette workspaces, boards og grupper, og tildele board-tilgang per team/person. |
 | F3 | Roller: **admin** (alt), **medlem** (opprette/redigere oppgaver på egne boards), **leser** (kun lese). |
 | F4 | **Kursstruktur:** Et board = ett kurs. Kurset har kapitler, hvert kapittel har delmengder av delkapitler, og hvert delkapittel er en gruppe i tabellen (f.eks. «1.1 Mengder, relasjoner og funksjoner – Mengder og notasjon»). Radene i gruppen er videoer/leksjoner. Grupper kan kollapses, sorteres og flyttes. |
-| F5 | **Videorad — standardkolonner:** Hver video har som standard: Leksjon (navn), Type innhold (label: Teorivideo, Oppgavevideo, Repetisjonsoppgaver, …), Importert, Lenke (URL), Ansvarlig (person), samt produksjonssteg som statuskolonner: Manus, Presentasjon, Opphavsrett, Innspilling, Kameraopptak, Klar til redigering, Redigering, Opplastning, Kvalitetssjekk. I tillegg tallkolonnene Beregnet arbeid (poeng) og Opparbeidet poeng. |
+| F5 | **Videorad — standardkolonner:** Hver video har som standard: Leksjon (navn), Type innhold (label: Teorivideo, Oppgavevideo, Repetisjonsoppgaver, …), Importert (label: Ny, Importert — se FR11), Lenke (URL), Ansvarlig (person), samt produksjonssteg som statuskolonner: Manus, Presentasjon, Opphavsrett, Innspilling, Kameraopptak, Klar til redigering, Redigering, Opplastning, Kvalitetssjekk. I tillegg tallkolonnene Beregnet arbeid (poeng) og Opparbeidet poeng. |
 | F6 | **Statusverdier:** Standardverdier er Ferdig, Under arbeid, Trenger tilbakemelding, Har gitt tilbakemelding, Ikke startet og Ikke behov — hver med egen farge. Brukere kan legge til egne labels med valgfri farge per kolonne. |
 | F7 | **Egendefinerte kolonner:** Teamet kan legge til nye kolonner på et kurs (typene status, person, dato, tekst, tall, lenke, label) og endre rekkefølgen. Nye kurs kan opprettes fra en mal med standardkolonnene i F5. |
 | F8 | Hver video har kommentartråd med @-nevning; antall kommentarer vises som ikon på raden. @-nevning og tildeling utløser varsel. |
@@ -85,7 +85,30 @@ Postgres håndterer denne skalaen med god margin — «databasen krasjer ved mye
 
 Byggingen går altså fort (2–3 uker til pilotklar), men piloten bør fortsatt få gå sin tid — det er den som beskytter dere mot å si opp Monday for tidlig.
 
-## 8. Vedlikehold
+## 8. Forretningsregler (fra intervjurunde A–D)
+
+Regler appen skal håndheve (beregne/styre):
+
+| # | Regel |
+|---|------|
+| FR1 | **Poengsats per innholdstype:** Ett poeng representerer arbeidstid. Hver innholdstype (Teorivideo, Oppgavevideo, …) har en fast poengsats som admin konfigurerer. «Beregnet arbeid» settes automatisk fra typen når en video opprettes. |
+| FR2 | **Automatisk poengopptjening:** Hvert produksjonssteg utgjør en konfigurerbar andel av videoens poeng. «Opparbeidet poeng» beregnes av appen: andelen tildeles når steget settes til Ferdig. Steg markert «Ikke behov» holdes utenfor, og de øvrige andelene skaleres opp tilsvarende. |
+| FR3 | **Fremdriftsrapport:** Egen rapportside for ledelsen med (a) fremdrift per kurs: opparbeidet vs. beregnet poeng og % ferdige videoer, og (b) fremdrift per person: poeng og aktive videoer per nettlærer. |
+| FR4 | **Kursadministrasjon:** Både admin og vanlige brukere kan opprette kurs. Hver nettlærer setter opp og endrer kapittel-/delkapittelstrukturen på sine egne kurs, og teamet oppretter og redigerer videoradene innenfor strukturen. |
+| FR5 | **Arkivering:** Ferdigproduserte kurs arkiveres — skjules fra aktiv liste og blir skrivebeskyttet, men kan gjenåpnes av admin. |
+
+Regler appen bare skal synliggjøre (ingen sperrer):
+
+| # | Regel |
+|---|------|
+| FR6 | **Anbefalt stegrekkefølge:** Produksjonsstegene har en anbefalt rekkefølge (manus → presentasjon → … → kvalitetssjekk), gjenspeilet i kolonnerekkefølgen. Ingen advarsler eller sperrer — teamet jobber fritt. |
+| FR7 | **Tilbakemeldingssløyfe:** «Trenger tilbakemelding ↔ Har gitt tilbakemelding» kan gjentas fritt. Tilbakemelding gis av teamkollega eller fagansvarlig. Statusendringen utløser ingen varsler, og ingen sperre for å sette Ferdig. |
+| FR8 | **Tilbakemelding skjer i Google Docs/Drive:** Selve innholdet i tilbakemeldingen ligger i arbeidsfilene (Lenke-kolonnen). Appen trenger status, varsling og lenke — ikke eget review-verktøy. |
+| FR9 | **«Klar til redigering»** settes manuelt som et bevisst signal. Ingen hint eller automatikk. |
+| FR10 | **Fleksibelt redigeringsansvar:** Hvem som gjør redigering/opplastning/kvalitetssjekk varierer per kurs. Kursmalen inkluderer derfor egen personkolonne «Redigeringsansvarlig» som kan settes per video. |
+| FR11 | **Importert-kolonnen** angir gjenbruk av innhold fra andre kurs (Ny / Importert). Ingen fristlogikk i v1 (jobbes kontinuerlig). |
+
+## 9. Vedlikehold
 
 - Ukentlig: sjekk at backup kjører, gjennomgå feillogg
 - Ved behov: brukere inn/ut, nye statusverdier/kolonner
