@@ -1,14 +1,14 @@
 "use client";
 
 // Column management (F7): rename, reorder, per-function visibility, point
-// weight for production steps (FR2), label editing with rates (FR1/F6), and
-// delete. All actions live behind the column header's dropdown.
+// weight for production steps (FR2), label editing (own dialog) and delete.
+// The header reads as plain text — the chevron only appears on hover/open.
 
-import { ChevronDownIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import { useState } from "react";
 
 import { useBoard } from "@/components/board/board-store";
-import { LABEL_COLORS } from "@/components/board/cells/label-colors";
+import { LabelEditorDialog } from "@/components/board/LabelEditorDialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,100 +25,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import type { BoardColumn, BoardLabel } from "@/lib/boards/queries";
-import { comparePositions } from "@/lib/ordering/position";
+import type { BoardColumn } from "@/lib/boards/queries";
 
-type DialogKind = "rename" | "visibility" | "weight" | "labels" | "delete" | null;
-
-function ColorSwatches({
-  selected,
-  onPick,
-}: {
-  selected: string;
-  onPick: (color: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-1">
-      {LABEL_COLORS.map((color) => (
-        <button
-          key={color}
-          type="button"
-          aria-label={`Farge ${color}`}
-          onClick={() => onPick(color)}
-          className={`size-5 rounded-full border-2 ${
-            color === selected ? "border-foreground" : "border-transparent"
-          }`}
-          style={{ backgroundColor: color }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function LabelRow({
-  label,
-  withPoints,
-}: {
-  label: BoardLabel;
-  withPoints: boolean;
-}) {
-  const { updateLabel, deleteLabel } = useBoard();
-  const [showColors, setShowColors] = useState(false);
-
-  return (
-    <div className="flex flex-col gap-1 border-b py-1.5 last:border-b-0">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          aria-label="Endre farge"
-          onClick={() => setShowColors((v) => !v)}
-          className="size-4 shrink-0 rounded-full"
-          style={{ backgroundColor: label.color }}
-        />
-        <Input
-          key={label.title} // remount when the store value changes (resync)
-          defaultValue={label.title}
-          className="h-7 flex-1 text-sm"
-          onBlur={(e) => {
-            const title = e.currentTarget.value.trim();
-            if (title && title !== label.title) updateLabel(label.id, { title });
-          }}
-        />
-        {withPoints && (
-          <Input
-            key={String(label.points)} // remount when the store value changes
-            defaultValue={label.points ?? ""}
-            placeholder="poeng"
-            className="h-7 w-20 text-sm"
-            onBlur={(e) => {
-              const raw = e.currentTarget.value.trim().replace(",", ".");
-              const points = raw === "" ? null : Number(raw);
-              if (points !== null && !Number.isFinite(points)) return;
-              if (points !== label.points) updateLabel(label.id, { points });
-            }}
-          />
-        )}
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Slett label"
-          onClick={() => deleteLabel(label.id)}
-        >
-          <XIcon />
-        </Button>
-      </div>
-      {showColors && (
-        <ColorSwatches
-          selected={label.color}
-          onPick={(color) => {
-            updateLabel(label.id, { color });
-            setShowColors(false);
-          }}
-        />
-      )}
-    </div>
-  );
-}
+type DialogKind = "rename" | "visibility" | "weight" | "delete" | null;
 
 export function ColumnHeaderMenu({
   column,
@@ -135,25 +44,14 @@ export function ColumnHeaderMenu({
     deleteColumn,
     setColumnVisibility,
     setPointWeight,
-    addLabel,
   } = useBoard();
   const [dialog, setDialog] = useState<DialogKind>(null);
+  const [labelsOpen, setLabelsOpen] = useState(false);
   const [renameValue, setRenameValue] = useState(column.title);
-  const [weightValue, setWeightValue] = useState(
-    column.settings.pointWeight !== undefined ? String(column.settings.pointWeight) : "",
-  );
-  const [visibleTo, setVisibleTo] = useState<Set<string>>(
-    () => new Set(column.settings.visibleToFunctions ?? []),
-  );
-  const [newLabelTitle, setNewLabelTitle] = useState("");
-  const [newLabelColor, setNewLabelColor] = useState<string>(LABEL_COLORS[4]);
+  const [weightValue, setWeightValue] = useState("");
+  const [visibleTo, setVisibleTo] = useState<Set<string>>(() => new Set());
 
   const hasLabels = column.type === "status" || column.type === "label";
-  const withPoints =
-    column.settings.role === "contentType" || column.settings.role === "questionRate";
-  const labels = Object.values(state.labelsById)
-    .filter((l) => l.columnId === column.id)
-    .sort((a, b) => comparePositions(a.position, b.position));
 
   const openDialog = (kind: Exclude<DialogKind, null>) => {
     setRenameValue(column.title);
@@ -173,12 +71,13 @@ export function ColumnHeaderMenu({
           render={
             <button
               type="button"
-              className="hover:text-foreground flex items-center gap-1 whitespace-nowrap"
+              className="group/colhead hover:text-foreground flex items-center gap-1 whitespace-nowrap"
             />
           }
         >
           {column.title}
-          <ChevronDownIcon className="size-3.5 opacity-60" />
+          {/* Hidden until the header is hovered or the menu is open. */}
+          <ChevronDownIcon className="size-3.5 opacity-0 transition-opacity group-hover/colhead:opacity-60 group-aria-expanded/colhead:opacity-60" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuItem onClick={() => openDialog("rename")}>
@@ -200,7 +99,7 @@ export function ColumnHeaderMenu({
             </DropdownMenuItem>
           )}
           {hasLabels && (
-            <DropdownMenuItem onClick={() => openDialog("labels")}>
+            <DropdownMenuItem onClick={() => setLabelsOpen(true)}>
               Rediger labels …
             </DropdownMenuItem>
           )}
@@ -210,6 +109,14 @@ export function ColumnHeaderMenu({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {hasLabels && (
+        <LabelEditorDialog
+          column={column}
+          open={labelsOpen}
+          onOpenChange={setLabelsOpen}
+        />
+      )}
 
       <Dialog open={dialog !== null} onOpenChange={(open) => !open && setDialog(null)}>
         <DialogContent>
@@ -311,52 +218,6 @@ export function ColumnHeaderMenu({
                 />
                 <div className="flex justify-end">
                   <Button type="submit">Lagre</Button>
-                </div>
-              </form>
-            </>
-          )}
-
-          {dialog === "labels" && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Labels for «{column.title}»</DialogTitle>
-                {withPoints && (
-                  <DialogDescription>
-                    «Poeng» er {column.settings.role === "questionRate"
-                      ? "sats per spørsmål"
-                      : "beregnet arbeid for innholdstypen"}{" "}
-                    (FR1).
-                  </DialogDescription>
-                )}
-              </DialogHeader>
-              <div className="max-h-72 overflow-y-auto">
-                {labels.map((label) => (
-                  <LabelRow key={label.id} label={label} withPoints={withPoints} />
-                ))}
-                {labels.length === 0 && (
-                  <p className="text-muted-foreground text-sm">Ingen labels ennå.</p>
-                )}
-              </div>
-              <form
-                className="grid gap-2 border-t pt-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!newLabelTitle.trim()) return;
-                  addLabel(column.id, newLabelTitle, newLabelColor);
-                  setNewLabelTitle("");
-                }}
-              >
-                <Input
-                  value={newLabelTitle}
-                  onChange={(e) => setNewLabelTitle(e.target.value)}
-                  placeholder="Ny label …"
-                  className="h-8 text-sm"
-                />
-                <ColorSwatches selected={newLabelColor} onPick={setNewLabelColor} />
-                <div className="flex justify-end">
-                  <Button type="submit" size="sm" variant="outline" disabled={!newLabelTitle.trim()}>
-                    Legg til label
-                  </Button>
                 </div>
               </form>
             </>

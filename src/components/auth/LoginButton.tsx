@@ -13,7 +13,12 @@ export function LoginButton() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        // Always show the account chooser instead of silently reusing the
+        // browser's active Google session.
+        queryParams: { prompt: "select_account" },
+      },
     });
     // On success the browser redirects to Google; only reset on error.
     if (error) setLoading(false);
