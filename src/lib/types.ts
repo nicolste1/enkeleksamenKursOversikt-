@@ -17,8 +17,16 @@ export type ColumnType =
 /**
  * Semantic role a column plays in the points model (FR1–FR2). Stored in data,
  * not inferred from the Norwegian title, since users can rename columns (F7).
+ * questionCount/questionRate drive the per-question estimate used for
+ * «Repetisjonsoppgaver» (FR1): estimate = question count × rate per question.
  */
-export type ColumnRole = "contentType" | "estimate" | "earned" | "step";
+export type ColumnRole =
+  | "contentType"
+  | "estimate"
+  | "earned"
+  | "step"
+  | "questionCount"
+  | "questionRate";
 
 /** Board-level column configuration stored in columns.settings (JSONB). */
 export interface ColumnSettings {
@@ -28,4 +36,6 @@ export interface ColumnSettings {
   role?: ColumnRole;
   /** Share of a video's estimated points earned by completing this step (FR2). */
   pointWeight?: number;
+  /** questionRate columns: rate per question when no label is set (FR1). */
+  defaultPointsPerQuestion?: number;
 }

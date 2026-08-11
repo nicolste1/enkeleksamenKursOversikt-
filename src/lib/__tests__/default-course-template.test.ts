@@ -8,7 +8,7 @@ import {
 } from "@/lib/templates/default-course-template";
 
 // The standard columns, in order, excluding «Leksjon» (which is items.name).
-// Extends F5 with «Redigeringsansvarlig» (FR10).
+// Mirrors the team's Monday board, extended with «Redigeringsansvarlig» (FR10).
 const EXPECTED_TITLES = [
   "Type innhold",
   "Importert",
@@ -24,8 +24,11 @@ const EXPECTED_TITLES = [
   "Redigering",
   "Opplastning",
   "Kvalitetssjekk",
-  "Beregnet arbeid",
-  "Opparbeidet poeng",
+  "Antall spørsmål",
+  "Oppgavetype",
+  "Arbeid",
+  "Fullført arbeid",
+  "Innholdskategori",
 ];
 
 const byTitle = (title: string) =>
@@ -38,11 +41,25 @@ describe("default course template", () => {
 
   it("gives every production step the six F6 status labels", () => {
     const statusColumns = DEFAULT_TEMPLATE_COLUMNS.filter((c) => c.type === "status");
-    expect(statusColumns).toHaveLength(9);
+    expect(statusColumns).toHaveLength(8);
     for (const column of statusColumns) {
       expect(column.labels).toBe(DEFAULT_STATUS_LABELS);
     }
     expect(DEFAULT_STATUS_LABELS).toHaveLength(6);
+  });
+
+  it("gives every status label its Monday earned share (FR2)", () => {
+    const shares = Object.fromEntries(
+      DEFAULT_STATUS_LABELS.map((l) => [l.title, l.progress]),
+    );
+    expect(shares).toEqual({
+      Ferdig: 1,
+      "Under arbeid": 0.25,
+      "Trenger tilbakemelding": 0.5,
+      "Har gitt tilbakemelding": 0.75,
+      "Ikke startet": 0,
+      "Ikke behov": 1,
+    });
   });
 
   it("marks exactly one status label done (Ferdig) and one not-applicable (Ikke behov)", () => {
@@ -52,10 +69,22 @@ describe("default course template", () => {
     expect(na.map((l) => l.title)).toEqual(["Ikke behov"]);
   });
 
-  it("models «Importert» as a Ny/Importert label column, not a checkbox", () => {
+  it("models «Importert» as a label column with Ny/Noe gjenbruk/Importert (FR11)", () => {
     const importert = byTitle("Importert");
     expect(importert?.type).toBe("label");
-    expect(importert?.labels?.map((l) => l.title)).toEqual(["Ny", "Importert"]);
+    expect(importert?.labels?.map((l) => l.title)).toEqual([
+      "Ny",
+      "Noe gjenbruk",
+      "Importert",
+    ]);
+  });
+
+  it("models «Klar til redigering» as a Ja/Nei signal outside the points model (FR9)", () => {
+    const ktr = byTitle("Klar til redigering");
+    expect(ktr?.type).toBe("label");
+    expect(ktr?.role).toBeUndefined();
+    expect(ktr?.pointWeight).toBeUndefined();
+    expect(ktr?.labels?.map((l) => l.title)).toEqual(["Ja", "Nei", "Ikke behov"]);
   });
 
   it("uses valid hex colors everywhere", () => {
@@ -93,26 +122,54 @@ describe("default course template", () => {
 
   it("tags the points-model columns with roles (FR1–FR2)", () => {
     expect(byTitle("Type innhold")?.role).toBe("contentType");
-    expect(byTitle("Beregnet arbeid")?.role).toBe("estimate");
-    expect(byTitle("Opparbeidet poeng")?.role).toBe("earned");
+    expect(byTitle("Antall spørsmål")?.role).toBe("questionCount");
+    expect(byTitle("Oppgavetype")?.role).toBe("questionRate");
+    expect(byTitle("Arbeid")?.role).toBe("estimate");
+    expect(byTitle("Fullført arbeid")?.role).toBe("earned");
     for (const column of DEFAULT_TEMPLATE_COLUMNS.filter((c) => c.type === "status")) {
       expect(column.role).toBe("step");
     }
   });
 
-  it("sets points on every content-type label (FR1)", () => {
+  it("sets fixed points on every content type except Repetisjonsoppgaver (FR1)", () => {
     const labels = byTitle("Type innhold")?.labels ?? [];
-    expect(labels).toHaveLength(3);
+    expect(labels.map((l) => l.title)).toEqual([
+      "Teorivideo",
+      "Oppgavevideo",
+      "Kombivideo",
+      "Repetisjonsoppgaver",
+      "Artikkel",
+    ]);
     for (const label of labels) {
-      expect(typeof label.points).toBe("number");
+      if (label.title === "Repetisjonsoppgaver") {
+        expect(label.points).toBeUndefined();
+      } else {
+        expect(typeof label.points).toBe("number");
+      }
     }
   });
 
-  it("gives every step a weight, summing to 1 across the nine steps (FR2)", () => {
+  it("configures the per-question rate on «Oppgavetype» (FR1)", () => {
+    const oppgavetype = byTitle("Oppgavetype");
+    expect(oppgavetype?.defaultPointsPerQuestion).toBe(0.5);
+    expect(oppgavetype?.labels?.map((l) => [l.title, l.points])).toEqual([
+      ["Matematikk", 1],
+    ]);
+  });
+
+  it("uses the team's step weights, summing to 1, with Opphavsrett unweighted (FR2)", () => {
     const steps = DEFAULT_TEMPLATE_COLUMNS.filter((c) => c.role === "step");
-    for (const step of steps) {
-      expect(typeof step.pointWeight).toBe("number");
-    }
+    const weights = Object.fromEntries(steps.map((s) => [s.title, s.pointWeight]));
+    expect(weights).toEqual({
+      Manus: 0.4,
+      Presentasjon: 0.25,
+      Opphavsrett: 0,
+      Innspilling: 0.15,
+      Kameraopptak: 0.05,
+      Redigering: 0.05,
+      Opplastning: 0.05,
+      Kvalitetssjekk: 0.05,
+    });
     const sum = steps.reduce((acc, s) => acc + (s.pointWeight ?? 0), 0);
     expect(sum).toBeCloseTo(1, 10);
   });
