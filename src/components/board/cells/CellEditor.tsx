@@ -19,11 +19,13 @@ export function CellEditor({
   column,
   value,
   computedEarned,
+  earnedFraction = null,
 }: {
   itemId: string;
   column: BoardColumn;
   value: CellValue | undefined;
   computedEarned: number | null;
+  earnedFraction?: number | null;
 }) {
   const { state, allows } = useBoard();
 
@@ -35,6 +37,7 @@ export function CellEditor({
         labelsById={state.labelsById}
         peopleById={state.peopleById}
         computedEarned={computedEarned}
+        earnedFraction={earnedFraction}
       />
     );
   }

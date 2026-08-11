@@ -1,14 +1,20 @@
-// Course-list data for the home page: every workspace the signed-in user can
-// see, with its active and archived courses. All database access lives here
-// (never in components); RLS is the real gate — these queries only shape data.
+// Course-list data for the home page and sidebar: every workspace the
+// signed-in user can see, with its courses and their progress rollup
+// (earned vs. estimated points — same earnedPoints() rule as the table).
+// All database access lives here (never in components); RLS is the real
+// gate — these queries only shape data.
 
+import type { CellValue } from "@/lib/cells/cell-value";
 import { comparePositions } from "@/lib/ordering/position";
+import { courseProgress, type CourseProgress } from "@/lib/points/course-progress";
 import { createClient } from "@/lib/supabase/server";
+import type { ColumnSettings } from "@/lib/types";
 
 export interface CourseSummary {
   id: string;
   name: string;
   archivedAt: string | null;
+  progress: CourseProgress;
 }
 
 export interface WorkspaceWithCourses {
@@ -27,7 +33,19 @@ export async function getWorkspacesWithCourses(): Promise<WorkspaceWithCourses[]
   } = await supabase.auth.getUser();
   if (!user) return [];
 
-  const [profileRes, workspacesRes, membershipsRes, boardsRes] = await Promise.all([
+  // RLS scopes every query to boards the user can see. The cell/column/label
+  // fetches power the progress rollup; at 30–100 users and a few thousand
+  // rows per course this is well within budget (same reasoning as FR3).
+  const [
+    profileRes,
+    workspacesRes,
+    membershipsRes,
+    boardsRes,
+    columnsRes,
+    labelsRes,
+    itemsRes,
+    cellsRes,
+  ] = await Promise.all([
     supabase.from("profiles").select("is_site_admin").eq("id", user.id).maybeSingle(),
     supabase.from("workspaces").select("id, name").order("name"),
     supabase
@@ -38,15 +56,56 @@ export async function getWorkspacesWithCourses(): Promise<WorkspaceWithCourses[]
       .from("boards")
       .select("id, workspace_id, name, archived_at, position")
       .is("deleted_at", null),
+    supabase.from("columns").select("id, board_id, settings").is("deleted_at", null),
+    supabase.from("column_labels").select("id, board_id, progress"),
+    supabase.from("items").select("id, board_id").is("deleted_at", null),
+    supabase.from("cell_values").select("board_id, item_id, column_id, value"),
   ]);
   const firstError =
-    profileRes.error ?? workspacesRes.error ?? membershipsRes.error ?? boardsRes.error;
+    profileRes.error ??
+    workspacesRes.error ??
+    membershipsRes.error ??
+    boardsRes.error ??
+    columnsRes.error ??
+    labelsRes.error ??
+    itemsRes.error ??
+    cellsRes.error;
   if (firstError) throw new Error(`Kunne ikke hente kurslisten: ${firstError.message}`);
 
   const isSiteAdmin = profileRes.data?.is_site_admin ?? false;
   const roleByWorkspace = new Map(
     (membershipsRes.data ?? []).map((m) => [m.workspace_id, m.role]),
   );
+
+  // Group the progress ingredients per board.
+  const groupBy = <T extends { board_id: string }>(rows: T[] | null) => {
+    const map = new Map<string, T[]>();
+    for (const row of rows ?? []) {
+      const list = map.get(row.board_id) ?? [];
+      list.push(row);
+      map.set(row.board_id, list);
+    }
+    return map;
+  };
+  const columnsByBoard = groupBy(columnsRes.data);
+  const labelsByBoard = groupBy(labelsRes.data);
+  const itemsByBoard = groupBy(itemsRes.data);
+  const cellsByBoard = groupBy(cellsRes.data);
+
+  const progressFor = (boardId: string): CourseProgress =>
+    courseProgress({
+      columns: (columnsByBoard.get(boardId) ?? []).map((c) => ({
+        id: c.id,
+        settings: (c.settings ?? {}) as ColumnSettings,
+      })),
+      labels: labelsByBoard.get(boardId) ?? [],
+      itemIds: (itemsByBoard.get(boardId) ?? []).map((i) => i.id),
+      cells: (cellsByBoard.get(boardId) ?? []).map((c) => ({
+        itemId: c.item_id,
+        columnId: c.column_id,
+        value: (c.value ?? {}) as CellValue,
+      })),
+    });
 
   // Sort in code: fractional-index keys need byte-order comparison, which
   // `order by position` only gives under C collation.
@@ -60,6 +119,7 @@ export async function getWorkspacesWithCourses(): Promise<WorkspaceWithCourses[]
       id: b.id,
       name: b.name,
       archivedAt: b.archived_at,
+      progress: progressFor(b.id),
     });
     const role = roleByWorkspace.get(ws.id) ?? null;
     return {

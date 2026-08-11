@@ -48,6 +48,7 @@ export function NumberCell({
       }
       placeholder="—"
       className="max-w-28"
+      align="right"
       onCommit={commit}
     />
   );

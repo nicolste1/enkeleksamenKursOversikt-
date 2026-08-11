@@ -2,8 +2,8 @@
 
 import { MoreHorizontalIcon } from "lucide-react";
 
+import { itemPoints, type PointsContext } from "@/components/board/board-points";
 import { useBoard } from "@/components/board/board-store";
-import type { PointsContext } from "@/components/board/BoardTable";
 import { CellEditor } from "@/components/board/cells/CellEditor";
 import { InlineText } from "@/components/board/InlineText";
 import {
@@ -15,45 +15,30 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import type { BoardColumn, BoardItem } from "@/lib/boards/queries";
-import { earnedPoints, type StepCellValues } from "@/lib/points/earned";
-
-/** «Fullført arbeid» for one row: earned fraction (FR2) × the row's estimate.
- *  null when the row has no estimate — rendered as an empty cell. */
-function computeEarned(item: BoardItem, ctx: PointsContext): number | null {
-  if (!ctx.estimateColumnId) return null;
-  const estimateRaw = item.cells[ctx.estimateColumnId]?.number;
-  if (typeof estimateRaw !== "number") return null;
-
-  const stepCells: Record<string, { labelId: string | null }> = {};
-  for (const step of ctx.stepColumns) {
-    const labelId = item.cells[step.id]?.labelId;
-    stepCells[step.id] = { labelId: typeof labelId === "string" ? labelId : null };
-  }
-  const fraction = earnedPoints(
-    ctx.stepColumns,
-    stepCells as StepCellValues,
-    ctx.labelProgressById,
-  );
-  return fraction * estimateRaw;
-}
 
 export function BoardRow({
   item,
   columns,
   pointsContext,
+  groupColor,
 }: {
   item: BoardItem;
   columns: BoardColumn[];
   pointsContext: PointsContext;
+  /** The group's accent color — rendered as a thin left edge on the row. */
+  groupColor: string;
 }) {
   const { allows, renameItem, moveItem, deleteItem } = useBoard();
-  const earned = computeEarned(item, pointsContext);
+  const points = itemPoints(item, pointsContext);
   const editable = allows("editItems");
 
   return (
-    <tr className="group/row hover:bg-muted/30 border-t">
-      <td className="bg-background sticky left-0 z-10 max-w-72 border-r px-3 py-1.5 font-medium">
-        <span className="flex items-center gap-1">
+    <tr className="group/row hover:bg-muted/60 border-t transition-colors">
+      <td
+        className="bg-background sticky left-0 z-10 max-w-72 border-r px-2 py-1 font-medium"
+        style={{ boxShadow: `inset 3px 0 0 ${groupColor}` }}
+      >
+        <span className="flex items-center gap-1 pl-1">
           {editable ? (
             <InlineText
               value={item.name}
@@ -97,12 +82,18 @@ export function BoardRow({
         </span>
       </td>
       {columns.map((column) => (
-        <td key={column.id} className="px-3 py-1.5 whitespace-nowrap">
+        <td
+          key={column.id}
+          className={`px-2 py-1 whitespace-nowrap ${
+            column.type === "number" ? "text-right" : ""
+          }`}
+        >
           <CellEditor
             itemId={item.id}
             column={column}
             value={item.cells[column.id]}
-            computedEarned={earned}
+            computedEarned={points === null ? null : points.earned}
+            earnedFraction={points === null ? null : points.fraction}
           />
         </td>
       ))}

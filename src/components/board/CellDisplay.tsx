@@ -4,6 +4,8 @@
 // arbeid» column (role: earned) is never stored — the computed value comes in
 // via computedEarned (FR2).
 
+import { readableTint, softBackground } from "@/components/board/cells/label-colors";
+import { ProgressBar } from "@/components/board/ProgressBar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { BoardColumn, BoardLabel, BoardPerson } from "@/lib/boards/queries";
 import type { CellValue } from "@/lib/cells/cell-value";
@@ -13,10 +15,16 @@ const numberFormat = new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 2 }
 const Empty = () => <span className="text-muted-foreground/60">—</span>;
 
 function LabelPill({ label }: { label: BoardLabel }) {
+  // Notion-style soft tag (M4.5): the stored color tints the background while
+  // the text stays a dark shade of it (light shade in dark mode) — calmer
+  // than saturated pills when hundreds of statuses fill the screen.
   return (
     <span
-      className="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
-      style={{ backgroundColor: label.color }}
+      className="inline-block max-w-48 truncate rounded-md px-2 py-0.5 align-bottom text-xs font-medium"
+      style={{
+        backgroundColor: softBackground(label.color),
+        color: readableTint(label.color),
+      }}
     >
       {label.title}
     </span>
@@ -55,18 +63,24 @@ export function CellDisplay({
   labelsById,
   peopleById,
   computedEarned,
+  earnedFraction = null,
 }: {
   column: BoardColumn;
   value: CellValue | undefined;
   labelsById: Record<string, BoardLabel>;
   peopleById: Record<string, BoardPerson>;
   computedEarned: number | null;
+  earnedFraction?: number | null;
 }) {
   if (column.settings.role === "earned") {
-    return computedEarned === null ? (
-      <Empty />
-    ) : (
-      <span className="tabular-nums">{numberFormat.format(computedEarned)}</span>
+    if (computedEarned === null) return <Empty />;
+    return (
+      <span className="inline-flex items-center gap-2">
+        {typeof earnedFraction === "number" && (
+          <ProgressBar fraction={earnedFraction} className="w-12" />
+        )}
+        <span className="tabular-nums">{numberFormat.format(computedEarned)}</span>
+      </span>
     );
   }
 

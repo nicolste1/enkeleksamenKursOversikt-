@@ -1,17 +1,14 @@
 "use client";
 
-import {
-  ChevronDownIcon,
-  ChevronRightIcon,
-  MoreHorizontalIcon,
-  PlusIcon,
-} from "lucide-react";
+import { ChevronDownIcon, MoreHorizontalIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 
+import { groupPoints, type PointsContext } from "@/components/board/board-points";
 import { useBoard } from "@/components/board/board-store";
 import { BoardRow } from "@/components/board/BoardRow";
-import type { PointsContext } from "@/components/board/BoardTable";
+import { colorFor, readableTint } from "@/components/board/cells/label-colors";
 import { InlineText } from "@/components/board/InlineText";
+import { ProgressBar } from "@/components/board/ProgressBar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,6 +18,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { BoardColumn, BoardGroupData } from "@/lib/boards/queries";
+
+const pointsFormat = new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 1 });
 
 function AddItemRow({ groupId, colSpan }: { groupId: string; colSpan: number }) {
   const { addItem } = useBoard();
@@ -51,7 +50,8 @@ function AddItemRow({ groupId, colSpan }: { groupId: string; colSpan: number }) 
   );
 }
 
-/** One subchapter as a collapsible, editable section of rows (F4). */
+/** One subchapter as a collapsible, editable section of rows (F4), with its
+ *  own accent color and progress rollup in the header. */
 export function BoardGroup({
   group,
   columns,
@@ -71,25 +71,37 @@ export function BoardGroup({
   const { allows, renameGroup, moveGroup, deleteGroup } = useBoard();
   const editable = allows("editItems");
 
+  // Stored color when set (editable in a later round); otherwise a stable
+  // color derived from the name so every group has an identity for free.
+  const color = group.color ?? colorFor(group.name);
+  const totals = groupPoints(group.items, pointsContext);
+
   return (
     <tbody className="border-t">
       <tr>
-        <td colSpan={colSpan} className="bg-muted/30 px-2 py-1.5">
+        <td colSpan={colSpan} className="px-2 pt-3 pb-1">
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={onToggle}
               aria-expanded={!collapsed}
               aria-label={collapsed ? "Vis gruppen" : "Skjul gruppen"}
-              className="hover:text-foreground"
+              className="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-0.5"
             >
-              {collapsed ? (
-                <ChevronRightIcon className="size-4" />
-              ) : (
-                <ChevronDownIcon className="size-4" />
-              )}
+              <ChevronDownIcon
+                className={`size-4 transition-transform duration-150 ${
+                  collapsed ? "-rotate-90" : ""
+                }`}
+              />
             </button>
-            <div className="min-w-0 text-sm font-medium">
+            <span
+              className="size-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: color }}
+            />
+            <div
+              className="min-w-0 text-sm font-semibold"
+              style={{ color: readableTint(color) }}
+            >
               {editable ? (
                 <InlineText
                   value={group.name}
@@ -127,6 +139,18 @@ export function BoardGroup({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+            {totals.estimated > 0 && (
+              <span className="text-muted-foreground ml-auto flex shrink-0 items-center gap-2 pr-2 text-xs tabular-nums">
+                <ProgressBar
+                  fraction={totals.fraction}
+                  color={color}
+                  className="w-24"
+                />
+                {pointsFormat.format(totals.earned)} av{" "}
+                {pointsFormat.format(totals.estimated)} p ·{" "}
+                {Math.round(totals.fraction * 100)} %
+              </span>
+            )}
           </div>
         </td>
       </tr>
@@ -137,6 +161,7 @@ export function BoardGroup({
             item={item}
             columns={columns}
             pointsContext={pointsContext}
+            groupColor={color}
           />
         ))}
       {!collapsed && group.items.length === 0 && !editable && (

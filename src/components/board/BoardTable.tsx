@@ -9,19 +9,13 @@ import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 
 import { AddColumnMenu } from "@/components/board/AddColumnMenu";
+import type { PointsContext } from "@/components/board/board-points";
 import { useBoard } from "@/components/board/board-store";
 import { BoardGroup } from "@/components/board/BoardGroup";
 import { ColumnHeaderMenu } from "@/components/board/ColumnHeaderMenu";
 import { Button } from "@/components/ui/button";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { visibleColumns } from "@/lib/access/column-visibility";
-import type { StepColumn, LabelsById } from "@/lib/points/earned";
-
-export interface PointsContext {
-  stepColumns: StepColumn[];
-  labelProgressById: LabelsById;
-  estimateColumnId: string | null;
-}
 
 // Stable fallback references (useLocalStorage relies on constant fallbacks).
 const NO_COLLAPSED: Record<string, boolean> = {};
@@ -107,17 +101,17 @@ export function BoardTable() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="max-h-[calc(100dvh-11rem)] overflow-auto rounded-lg border">
         <table className="w-full min-w-max border-collapse text-sm">
           <thead>
-            <tr className="bg-muted/50 text-left">
-              <th className="bg-muted/50 sticky left-0 z-10 border-b px-3 py-2 font-medium">
+            <tr className="text-left">
+              <th className="bg-background sticky top-0 left-0 z-30 border-r border-b px-2 py-1.5 text-xs font-medium">
                 Leksjon
               </th>
               {columns.map((column) => (
                 <th
                   key={column.id}
-                  className="text-muted-foreground border-b px-3 py-2 font-medium whitespace-nowrap"
+                  className="bg-background text-muted-foreground sticky top-0 z-20 border-b px-2 py-1.5 text-xs font-medium whitespace-nowrap"
                 >
                   {canManageColumns ? (
                     <ColumnHeaderMenu
@@ -130,7 +124,7 @@ export function BoardTable() {
                 </th>
               ))}
               {canManageColumns && (
-                <th className="w-8 border-b px-2 py-2">
+                <th className="bg-background sticky top-0 z-20 w-8 border-b px-2 py-1.5">
                   <AddColumnMenu />
                 </th>
               )}

@@ -12,6 +12,7 @@ export function InlineText({
   placeholder,
   className,
   inputClassName,
+  align = "left",
 }: {
   value: string;
   /** What to show when not editing; defaults to the raw value. */
@@ -20,16 +21,18 @@ export function InlineText({
   placeholder?: string;
   className?: string;
   inputClassName?: string;
+  align?: "left" | "right";
 }) {
   const [editing, setEditing] = useState(false);
   const cancelled = useRef(false);
+  const alignClass = align === "right" ? "text-right" : "text-left";
 
   if (!editing) {
     return (
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className={`block w-full cursor-text text-left ${className ?? ""}`}
+        className={`block w-full cursor-text ${alignClass} ${className ?? ""}`}
       >
         {display ?? (value || <span className="text-muted-foreground/60">{placeholder ?? "—"}</span>)}
       </button>
@@ -41,7 +44,7 @@ export function InlineText({
       autoFocus
       defaultValue={value}
       placeholder={placeholder}
-      className={`w-full min-w-24 rounded border px-1 py-0.5 text-sm outline-none focus:border-ring ${inputClassName ?? ""}`}
+      className={`w-full min-w-24 rounded border px-1 py-0.5 text-sm outline-none focus:border-ring ${alignClass} ${inputClassName ?? ""}`}
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();
         if (e.key === "Escape") {
