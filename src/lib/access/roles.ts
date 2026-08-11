@@ -26,8 +26,9 @@ export function effectiveBoardRole(
 }
 
 const CAPABILITIES: Record<BoardRole, ReadonlySet<BoardCapability>> = {
-  // Mirrors the policy write conditions: content tables allow admin+medlem,
-  // board membership/settings require admin, leser is read-only.
+  // Mirrors the policy write conditions: content tables allow admin+medlem;
+  // board membership, production functions and board settings require admin
+  // (see the actor-pinning/function-admin migration); leser is read-only.
   admin: new Set<BoardCapability>([
     "viewBoard",
     "editItems",

@@ -10,3 +10,6 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
 }
+
+/** Typed browser client — the parameter type for client-callable lib mutations. */
+export type BrowserClient = ReturnType<typeof createClient>;

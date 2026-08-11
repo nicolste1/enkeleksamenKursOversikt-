@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { BoardHeader } from "@/components/board/BoardHeader";
+import { BoardProvider } from "@/components/board/board-store";
 import { BoardTable } from "@/components/board/BoardTable";
 import { getBoardData } from "@/lib/boards/queries";
 
-// Read-only board view (M3); editing arrives in M4. RLS decides access —
-// no board (or no access) renders the same 404.
+// Board page (M4: editable). The Server Component fetches the full read
+// model; the client-side store owns it from there with optimistic updates.
+// RLS decides access — no board (or no access) renders the same 404.
 export default async function BoardPage({
   params,
 }: {
@@ -16,24 +19,21 @@ export default async function BoardPage({
   if (!board) notFound();
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <div>
-        <Link
-          href="/"
-          className="text-muted-foreground hover:text-foreground text-sm underline"
-        >
-          ← Kursoversikt
-        </Link>
-        <h1 className="mt-1 flex items-center gap-2 text-xl font-semibold">
-          {board.name}
-          {board.archivedAt && (
-            <span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-normal">
-              Arkivert — skrivebeskyttet
-            </span>
-          )}
-        </h1>
+    <BoardProvider initial={board}>
+      <div className="flex flex-col gap-4 p-6">
+        <div>
+          <Link
+            href="/"
+            className="text-muted-foreground hover:text-foreground text-sm underline"
+          >
+            ← Kursoversikt
+          </Link>
+          <div className="mt-1">
+            <BoardHeader />
+          </div>
+        </div>
+        <BoardTable />
       </div>
-      <BoardTable board={board} />
-    </div>
+    </BoardProvider>
   );
 }

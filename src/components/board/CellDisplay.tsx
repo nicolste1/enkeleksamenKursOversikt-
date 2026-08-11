@@ -40,7 +40,7 @@ function formatDate(iso: string): string {
 
 /** Cell values are member-writable data: only link out to http(s) URLs so a
  *  stored javascript:-URL can never execute in a colleague's session. */
-function safeHttpUrl(url: string): string | null {
+export function safeHttpUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
     return parsed.protocol === "http:" || parsed.protocol === "https:" ? url : null;

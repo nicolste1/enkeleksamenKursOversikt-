@@ -1,13 +1,20 @@
 "use client";
 
+import { MoreHorizontalIcon } from "lucide-react";
+
+import { useBoard } from "@/components/board/board-store";
 import type { PointsContext } from "@/components/board/BoardTable";
-import { CellDisplay } from "@/components/board/CellDisplay";
-import type {
-  BoardColumn,
-  BoardItem,
-  BoardLabel,
-  BoardPerson,
-} from "@/lib/boards/queries";
+import { CellEditor } from "@/components/board/cells/CellEditor";
+import { InlineText } from "@/components/board/InlineText";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import type { BoardColumn, BoardItem } from "@/lib/boards/queries";
 import { earnedPoints, type StepCellValues } from "@/lib/points/earned";
 
 /** «Fullført arbeid» for one row: earned fraction (FR2) × the row's estimate.
@@ -33,34 +40,73 @@ function computeEarned(item: BoardItem, ctx: PointsContext): number | null {
 export function BoardRow({
   item,
   columns,
-  labelsById,
-  peopleById,
   pointsContext,
 }: {
   item: BoardItem;
   columns: BoardColumn[];
-  labelsById: Record<string, BoardLabel>;
-  peopleById: Record<string, BoardPerson>;
   pointsContext: PointsContext;
 }) {
+  const { allows, renameItem, moveItem, deleteItem } = useBoard();
   const earned = computeEarned(item, pointsContext);
+  const editable = allows("editItems");
 
   return (
-    <tr className="hover:bg-muted/30 border-t">
-      <td className="bg-background sticky left-0 z-10 max-w-72 truncate border-r px-3 py-1.5 font-medium">
-        {item.name}
+    <tr className="group/row hover:bg-muted/30 border-t">
+      <td className="bg-background sticky left-0 z-10 max-w-72 border-r px-3 py-1.5 font-medium">
+        <span className="flex items-center gap-1">
+          {editable ? (
+            <InlineText
+              value={item.name}
+              className="truncate"
+              onCommit={(name) => renameItem(item.id, name)}
+            />
+          ) : (
+            <span className="truncate">{item.name}</span>
+          )}
+          {editable && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="shrink-0 opacity-0 group-hover/row:opacity-100 aria-expanded:opacity-100"
+                    aria-label="Radmeny"
+                  />
+                }
+              >
+                <MoreHorizontalIcon />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => moveItem(item.id, -1)}>
+                  Flytt opp
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => moveItem(item.id, 1)}>
+                  Flytt ned
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => deleteItem(item.id)}
+                >
+                  Slett video
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </span>
       </td>
       {columns.map((column) => (
         <td key={column.id} className="px-3 py-1.5 whitespace-nowrap">
-          <CellDisplay
+          <CellEditor
+            itemId={item.id}
             column={column}
             value={item.cells[column.id]}
-            labelsById={labelsById}
-            peopleById={peopleById}
             computedEarned={earned}
           />
         </td>
       ))}
+      {allows("manageColumns") && <td />}
     </tr>
   );
 }
