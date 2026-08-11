@@ -19,3 +19,15 @@ export function initialPositions(count: number): string[] {
   if (count <= 0) return [];
   return generateNKeysBetween(null, null, count);
 }
+
+/**
+ * Code-point comparator for position keys. Fractional-indexing keys require
+ * byte-order comparison (0-9 < A-Z < a-z); the database's default collation
+ * may interleave cases, so lists are always sorted in code with this — never
+ * trust `order by position` alone.
+ */
+export function comparePositions(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
