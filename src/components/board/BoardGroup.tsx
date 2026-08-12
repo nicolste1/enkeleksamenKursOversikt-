@@ -6,7 +6,11 @@ import { useState } from "react";
 import { groupPoints, type PointsContext } from "@/components/board/board-points";
 import { useBoard } from "@/components/board/board-store";
 import { BoardRow } from "@/components/board/BoardRow";
-import { colorFor, readableTint } from "@/components/board/cells/label-colors";
+import {
+  chapterColor,
+  readableTint,
+  softBackground,
+} from "@/components/board/cells/label-colors";
 import { InlineText } from "@/components/board/InlineText";
 import { ProgressBar } from "@/components/board/ProgressBar";
 import { Button } from "@/components/ui/button";
@@ -71,22 +75,29 @@ export function BoardGroup({
   const { allows, renameGroup, moveGroup, deleteGroup } = useBoard();
   const editable = allows("editItems");
 
-  // Stored color when set (editable in a later round); otherwise a stable
-  // color derived from the name so every group has an identity for free.
-  const color = group.color ?? colorFor(group.name);
+  // Stored color when set (editable in a later round); otherwise the chapter
+  // color, so all subchapters of e.g. chapter 6 share one accent.
+  const color = group.color ?? chapterColor(group.name);
   const totals = groupPoints(group.items, pointsContext);
 
   return (
-    <tbody className="border-t">
+    <tbody className="border-t-4 border-transparent">
       <tr>
-        <td colSpan={colSpan} className="px-2 pt-3 pb-1">
-          <div className="flex items-center gap-1.5">
+        <td colSpan={colSpan} className="p-0">
+          <div
+            className="flex items-center gap-2 border-y border-l-4 px-3 py-2.5"
+            style={{
+              borderLeftColor: color,
+              backgroundColor: softBackground(color),
+            }}
+          >
             <button
               type="button"
               onClick={onToggle}
               aria-expanded={!collapsed}
               aria-label={collapsed ? "Vis gruppen" : "Skjul gruppen"}
-              className="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-0.5"
+              className="hover:bg-background/70 rounded p-0.5"
+              style={{ color: readableTint(color) }}
             >
               <ChevronDownIcon
                 className={`size-4 transition-transform duration-150 ${
@@ -94,12 +105,8 @@ export function BoardGroup({
                 }`}
               />
             </button>
-            <span
-              className="size-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: color }}
-            />
             <div
-              className="min-w-0 text-sm font-semibold"
+              className="min-w-0 text-base font-semibold"
               style={{ color: readableTint(color) }}
             >
               {editable ? (
@@ -112,7 +119,9 @@ export function BoardGroup({
                 <span className="truncate">{group.name}</span>
               )}
             </div>
-            <span className="text-muted-foreground text-xs">{group.items.length}</span>
+            <span className="text-muted-foreground shrink-0 text-xs">
+              {group.items.length} {group.items.length === 1 ? "leksjon" : "leksjoner"}
+            </span>
             {editable && (
               <DropdownMenu>
                 <DropdownMenuTrigger

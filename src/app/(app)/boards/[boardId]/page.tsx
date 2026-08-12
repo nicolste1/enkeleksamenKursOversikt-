@@ -20,7 +20,9 @@ export default async function BoardPage({
 
   return (
     <BoardProvider initial={board}>
-      <div className="flex flex-col gap-4 p-6">
+      {/* Full-height column: the table below takes whatever is left, so the
+          lesson list reaches the bottom of the viewport. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-6 pt-6">
         <div>
           <Link
             href="/"

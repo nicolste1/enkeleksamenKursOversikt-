@@ -80,7 +80,7 @@ export function BoardTable() {
   const canManageColumns = store.allows("manageColumns");
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       {state.error && (
         <div className="bg-destructive/10 text-destructive flex items-center justify-between rounded-lg px-3 py-2 text-sm">
           <span>{state.error} — visningen er oppdatert fra serveren.</span>
@@ -101,7 +101,9 @@ export function BoardTable() {
         </div>
       )}
 
-      <div className="max-h-[calc(100dvh-11rem)] overflow-auto rounded-lg border">
+      {/* Fills the remaining viewport height (flex-1) instead of a fixed max
+          height, so the lesson list runs all the way to the bottom edge. */}
+      <div className="min-h-0 flex-1 overflow-auto rounded-t-lg border border-b-0">
         <table className="w-full min-w-max border-collapse text-sm">
           <thead>
             <tr className="text-left">

@@ -21,14 +21,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const workspaces = await getWorkspacesWithCourses();
 
   return (
-    <div className="flex min-h-full">
+    <div className="flex h-full min-h-0">
       <AppSidebar workspaces={workspaces} userEmail={user.email ?? ""} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b px-4 py-2 md:hidden">
           <span className="text-sm font-semibold">Enkeleksamen arbeidsflyt</span>
           <LogoutButton />
         </header>
-        <main className="flex-1">{children}</main>
+        <main className="flex min-h-0 flex-1 flex-col">{children}</main>
       </div>
     </div>
   );

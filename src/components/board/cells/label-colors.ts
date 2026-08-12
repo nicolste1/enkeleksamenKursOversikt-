@@ -26,6 +26,19 @@ export function colorFor(seed: string): string {
   return LABEL_COLORS[Math.abs(hash) % (LABEL_COLORS.length - 2)];
 }
 
+/** Accent color for a subchapter, shared by every subchapter of the same
+ *  chapter: groups are named «6.1 Grafteori – …», so the leading chapter number
+ *  picks the color. Indexing by the number (not hashing) guarantees that
+ *  neighbouring chapters get different colors. Groups without a numeric prefix
+ *  («Planlegging …») fall back to the name hash. */
+export function chapterColor(name: string): string {
+  const match = name.trim().match(/^(\d+)(?=[.,\s]|$)/);
+  if (!match) return colorFor(name);
+  const accents = LABEL_COLORS.length - 2; // skip the trailing grays
+  const chapter = Number(match[1]);
+  return LABEL_COLORS[(((chapter - 1) % accents) + accents) % accents];
+}
+
 /** Soft tinted background for tags/tiles (Notion-style). */
 export function softBackground(color: string): string {
   return `color-mix(in srgb, ${color} 15%, transparent)`;
