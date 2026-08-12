@@ -3,8 +3,15 @@
 // filtered here) and reshapes DB rows into camelCase domain objects.
 
 import { effectiveBoardRole } from "@/lib/access/roles";
+import {
+  rowToColumn,
+  rowToGroupFields,
+  rowToItemFields,
+  rowToLabel,
+} from "@/lib/boards/mappers";
 import type { CellValue } from "@/lib/cells/cell-value";
 import { comparePositions } from "@/lib/ordering/position";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import type { BoardRole, ColumnSettings, ColumnType } from "@/lib/types";
 import { isUuid } from "@/lib/validation";
@@ -144,15 +151,26 @@ export async function getBoardData(boardId: string): Promise<BoardData | null> {
         "id, column_id, title, color, position, is_done, is_not_applicable, points, progress",
       )
       .eq("board_id", boardId),
-    supabase
-      .from("items")
-      .select("id, group_id, name, position")
-      .eq("board_id", boardId)
-      .is("deleted_at", null),
-    supabase
-      .from("cell_values")
-      .select("item_id, column_id, value")
-      .eq("board_id", boardId),
+    // items and cell_values grow with course size (100+ videos × columns) and
+    // must page past PostgREST's silent 1000-row cap.
+    fetchAll((from, to) =>
+      supabase
+        .from("items")
+        .select("id, group_id, name, position")
+        .eq("board_id", boardId)
+        .is("deleted_at", null)
+        .order("id")
+        .range(from, to),
+    ),
+    fetchAll((from, to) =>
+      supabase
+        .from("cell_values")
+        .select("item_id, column_id, value")
+        .eq("board_id", boardId)
+        .order("item_id")
+        .order("column_id")
+        .range(from, to),
+    ),
     supabase
       .from("board_functions")
       .select("id, name, position")
@@ -196,39 +214,21 @@ export async function getBoardData(boardId: string): Promise<BoardData | null> {
   const groups: BoardGroupData[] = (groupsRes.data ?? [])
     .slice()
     .sort((a, b) => comparePositions(a.position, b.position))
-    .map((g) => ({
-      id: g.id,
-      name: g.name,
-      color: g.color,
-      position: g.position,
-      items: [],
-    }));
+    .map((g) => ({ ...rowToGroupFields(g), items: [] }));
   const groupById = new Map(groups.map((g) => [g.id, g]));
   const sortedItems = (itemsRes.data ?? [])
     .slice()
     .sort((a, b) => comparePositions(a.position, b.position));
   for (const item of sortedItems) {
     groupById.get(item.group_id)?.items.push({
-      id: item.id,
-      name: item.name,
-      position: item.position,
+      ...rowToItemFields(item),
       cells: cellsByItem.get(item.id) ?? {},
     });
   }
 
   const labelsById: Record<string, BoardLabel> = {};
   for (const l of labelsRes.data ?? []) {
-    labelsById[l.id] = {
-      id: l.id,
-      columnId: l.column_id,
-      title: l.title,
-      color: l.color,
-      position: l.position,
-      isDone: l.is_done,
-      isNotApplicable: l.is_not_applicable,
-      points: l.points,
-      progress: l.progress,
-    };
+    labelsById[l.id] = rowToLabel(l);
   }
 
   const functionIdsByUser = new Map<string, string[]>();
@@ -277,13 +277,7 @@ export async function getBoardData(boardId: string): Promise<BoardData | null> {
     columns: (columnsRes.data ?? [])
       .slice()
       .sort((a, b) => comparePositions(a.position, b.position))
-      .map((c) => ({
-        id: c.id,
-        title: c.title,
-        type: c.type,
-        position: c.position,
-        settings: (c.settings ?? {}) as ColumnSettings,
-      })),
+      .map(rowToColumn),
     labelsById,
     groups,
     peopleById,

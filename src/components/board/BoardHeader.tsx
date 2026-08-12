@@ -41,6 +41,16 @@ export function BoardHeader() {
             Arkivert — skrivebeskyttet
           </span>
         )}
+        {state.connection === "connecting" && (
+          <span className="bg-muted text-muted-foreground shrink-0 rounded px-2 py-0.5 text-xs font-normal">
+            Kobler til …
+          </span>
+        )}
+        {state.connection === "offline" && (
+          <span className="bg-destructive/10 text-destructive shrink-0 rounded px-2 py-0.5 text-xs font-normal">
+            Frakoblet — endringer fra andre vises ikke
+          </span>
+        )}
       </h1>
 
       <div className="flex shrink-0 items-center gap-2">

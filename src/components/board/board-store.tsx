@@ -5,12 +5,14 @@
 // lib mutations; on failure the store shows an error and re-syncs from the
 // server (router.refresh() → fresh `initial` prop → render-phase reset).
 // RLS is the real gate — can()/readOnly here are UI affordances only.
-// The M5 realtime channel will feed the same reducer.
+// The reducer itself lives in @/lib/boards/reducer so it is unit-testable
+// and shared with the realtime channel (M5).
 
 import { useRouter } from "next/navigation";
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useReducer,
   useState,
@@ -24,9 +26,13 @@ import type {
   BoardGroupData,
   BoardItem,
   BoardLabel,
-  BoardMemberInfo,
 } from "@/lib/boards/queries";
 import { archiveBoard, reopenBoard } from "@/lib/boards/archive";
+import {
+  boardReducer,
+  type BoardAction,
+  type BoardState,
+} from "@/lib/boards/reducer";
 import { isValidValue, type CellValue } from "@/lib/cells/cell-value";
 import { upsertCellValue } from "@/lib/cells/mutations";
 import * as columnsMutations from "@/lib/columns/mutations";
@@ -40,201 +46,10 @@ import {
   positionBetween,
 } from "@/lib/ordering/position";
 import { autoEstimateUpdate, ESTIMATE_INPUT_ROLES } from "@/lib/points/auto-estimate";
+import { subscribeToBoard } from "@/lib/realtime/board-channel";
 import { createClient } from "@/lib/supabase/client";
 import { DEFAULT_STATUS_LABELS } from "@/lib/templates/default-course-template";
 import type { BoardRole, ColumnSettings, ColumnType } from "@/lib/types";
-
-interface BoardState extends BoardData {
-  error: string | null;
-}
-
-type Action =
-  | { type: "reset"; data: BoardData }
-  | { type: "error"; message: string }
-  | { type: "clearError" }
-  | { type: "setCell"; itemId: string; columnId: string; value: CellValue }
-  | { type: "addItem"; groupId: string; item: BoardItem }
-  | { type: "patchItem"; itemId: string; patch: Partial<Pick<BoardItem, "name" | "position">> }
-  | { type: "removeItem"; itemId: string }
-  | { type: "addGroup"; group: BoardGroupData }
-  | { type: "patchGroup"; groupId: string; patch: Partial<Pick<BoardGroupData, "name" | "position">> }
-  | { type: "removeGroup"; groupId: string }
-  | { type: "addColumn"; column: BoardColumn; labels: BoardLabel[] }
-  | { type: "patchColumn"; columnId: string; patch: Partial<Pick<BoardColumn, "title" | "position" | "settings">> }
-  | { type: "removeColumn"; columnId: string }
-  | { type: "addLabel"; label: BoardLabel }
-  | { type: "patchLabel"; labelId: string; patch: Partial<Pick<BoardLabel, "title" | "color" | "points">> }
-  | { type: "removeLabel"; labelId: string }
-  | { type: "addFunction"; fn: BoardData["functions"][number] }
-  | { type: "patchFunction"; functionId: string; patch: { name?: string } }
-  | { type: "removeFunction"; functionId: string }
-  | { type: "setMember"; member: BoardMemberInfo }
-  | { type: "removeMember"; userId: string }
-  | { type: "setMemberFunctions"; userId: string; functionIds: string[] }
-  | { type: "setArchived"; archivedAt: string | null };
-
-const byPosition = <T extends { position: string }>(list: T[]): T[] =>
-  list.slice().sort((a, b) => comparePositions(a.position, b.position));
-
-function mapItems(
-  groups: BoardGroupData[],
-  itemId: string,
-  map: (item: BoardItem) => BoardItem | null,
-): BoardGroupData[] {
-  return groups.map((group) => {
-    if (!group.items.some((i) => i.id === itemId)) return group;
-    const items = group.items
-      .map((i) => (i.id === itemId ? map(i) : i))
-      .filter((i): i is BoardItem => i !== null);
-    return { ...group, items: byPosition(items) };
-  });
-}
-
-function reducer(state: BoardState, action: Action): BoardState {
-  switch (action.type) {
-    case "reset":
-      return { ...action.data, error: state.error };
-    case "error":
-      return { ...state, error: action.message };
-    case "clearError":
-      return { ...state, error: null };
-    case "setCell":
-      return {
-        ...state,
-        groups: mapItems(state.groups, action.itemId, (item) => ({
-          ...item,
-          cells: { ...item.cells, [action.columnId]: action.value },
-        })),
-      };
-    case "addItem":
-      return {
-        ...state,
-        groups: state.groups.map((g) =>
-          g.id === action.groupId
-            ? { ...g, items: byPosition([...g.items, action.item]) }
-            : g,
-        ),
-      };
-    case "patchItem":
-      return {
-        ...state,
-        groups: mapItems(state.groups, action.itemId, (item) => ({
-          ...item,
-          ...action.patch,
-        })),
-      };
-    case "removeItem":
-      return {
-        ...state,
-        groups: mapItems(state.groups, action.itemId, () => null),
-      };
-    case "addGroup":
-      return { ...state, groups: byPosition([...state.groups, action.group]) };
-    case "patchGroup":
-      return {
-        ...state,
-        groups: byPosition(
-          state.groups.map((g) =>
-            g.id === action.groupId ? { ...g, ...action.patch } : g,
-          ),
-        ),
-      };
-    case "removeGroup":
-      return { ...state, groups: state.groups.filter((g) => g.id !== action.groupId) };
-    case "addColumn": {
-      const labelsById = { ...state.labelsById };
-      for (const label of action.labels) labelsById[label.id] = label;
-      return {
-        ...state,
-        columns: byPosition([...state.columns, action.column]),
-        labelsById,
-      };
-    }
-    case "patchColumn":
-      return {
-        ...state,
-        columns: byPosition(
-          state.columns.map((c) =>
-            c.id === action.columnId ? { ...c, ...action.patch } : c,
-          ),
-        ),
-      };
-    case "removeColumn":
-      return {
-        ...state,
-        columns: state.columns.filter((c) => c.id !== action.columnId),
-      };
-    case "addLabel":
-      return {
-        ...state,
-        labelsById: { ...state.labelsById, [action.label.id]: action.label },
-      };
-    case "patchLabel": {
-      const existing = state.labelsById[action.labelId];
-      if (!existing) return state;
-      return {
-        ...state,
-        labelsById: {
-          ...state.labelsById,
-          [action.labelId]: { ...existing, ...action.patch },
-        },
-      };
-    }
-    case "removeLabel": {
-      const labelsById = { ...state.labelsById };
-      delete labelsById[action.labelId];
-      return { ...state, labelsById };
-    }
-    case "addFunction":
-      return { ...state, functions: byPosition([...state.functions, action.fn]) };
-    case "patchFunction":
-      return {
-        ...state,
-        functions: state.functions.map((f) =>
-          f.id === action.functionId ? { ...f, ...action.patch } : f,
-        ),
-      };
-    case "removeFunction":
-      return {
-        ...state,
-        functions: state.functions.filter((f) => f.id !== action.functionId),
-        members: state.members.map((m) => ({
-          ...m,
-          functionIds: m.functionIds.filter((id) => id !== action.functionId),
-        })),
-        userFunctionIds: state.userFunctionIds.filter(
-          (id) => id !== action.functionId,
-        ),
-      };
-    case "setMember": {
-      const exists = state.members.some((m) => m.userId === action.member.userId);
-      return {
-        ...state,
-        members: exists
-          ? state.members.map((m) =>
-              m.userId === action.member.userId ? { ...m, ...action.member } : m,
-            )
-          : [...state.members, action.member],
-      };
-    }
-    case "removeMember":
-      return {
-        ...state,
-        members: state.members.filter((m) => m.userId !== action.userId),
-      };
-    case "setMemberFunctions":
-      return {
-        ...state,
-        members: state.members.map((m) =>
-          m.userId === action.userId ? { ...m, functionIds: action.functionIds } : m,
-        ),
-        userFunctionIds:
-          action.userId === state.myUserId ? action.functionIds : state.userFunctionIds,
-      };
-    case "setArchived":
-      return { ...state, archivedAt: action.archivedAt };
-  }
-}
 
 export interface BoardStore {
   state: BoardState;
@@ -291,7 +106,11 @@ export function BoardProvider({
   initial: BoardData;
   children: ReactNode;
 }) {
-  const [state, dispatch] = useReducer(reducer, { ...initial, error: null });
+  const [state, dispatch] = useReducer(boardReducer, {
+    ...initial,
+    error: null,
+    connection: "connecting",
+  });
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
 
@@ -303,6 +122,40 @@ export function BoardProvider({
     setPrevInitial(initial);
     dispatch({ type: "reset", data: initial });
   }
+
+  // Realtime (M5): remote changes flow through the same reducer as optimistic
+  // edits, bypassing can()/archive gating on purpose — they are server truth,
+  // already RLS-authorized at the source. Depends only on stable values, never
+  // `state` or the store object (rebuilt every dispatch → eternal resubscribe);
+  // a fresh `initial` for the same board resets state under a live channel.
+  useEffect(() => {
+    // Starts true: edits committed between the server render and the first
+    // SUBSCRIBED have no event replay, so the first join also does a one-shot
+    // catch-up refresh. Same for rejoins after a drop. The refresh pulls a
+    // fresh `initial` (→ render-phase reset) — this is the error-recovery
+    // path, not the per-event sync mechanism.
+    let needsCatchUp = true;
+    let disposed = false;
+    const unsubscribe = subscribeToBoard({
+      supabase,
+      boardId: initial.id,
+      onAction: dispatch,
+      onStatus: (status) => {
+        if (disposed) return; // our own cleanup CLOSEs the channel
+        dispatch({ type: "setConnection", status });
+        if (status === "offline") {
+          needsCatchUp = true;
+        } else if (needsCatchUp) {
+          needsCatchUp = false;
+          router.refresh();
+        }
+      },
+    });
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [supabase, router, initial.id]);
 
   const store = useMemo<BoardStore>(() => {
     const boardId = initial.id;
@@ -348,7 +201,7 @@ export function BoardProvider({
     }
 
     /** Optimistic dispatch + persisted mutation; on failure show + re-sync. */
-    function run(optimistic: Action | null, mutate: () => Promise<void>) {
+    function run(optimistic: BoardAction | null, mutate: () => Promise<void>) {
       if (optimistic) dispatch(optimistic);
       void mutate().catch((error: unknown) => {
         const message =
@@ -792,8 +645,10 @@ export function BoardProvider({
 
     function archive() {
       if (!can(state.myRole, "manageBoard") || state.archivedAt !== null) return;
+      // boards is not in the realtime publication, so refresh on success to
+      // update the sidebar's server-rendered course list.
       run({ type: "setArchived", archivedAt: new Date().toISOString() }, () =>
-        archiveBoard(supabase, boardId),
+        archiveBoard(supabase, boardId).then(() => router.refresh()),
       );
     }
 
@@ -801,7 +656,7 @@ export function BoardProvider({
       // Reopening is deliberately privileged (FR5): site-/workspace-admin only.
       if (!state.canReopen || state.archivedAt === null) return;
       run({ type: "setArchived", archivedAt: null }, () =>
-        reopenBoard(supabase, boardId),
+        reopenBoard(supabase, boardId).then(() => router.refresh()),
       );
     }
   }, [state, supabase, router, initial.id]);

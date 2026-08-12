@@ -50,10 +50,20 @@ supabase/
 
 Vitest på forretningslogikk i `src/lib/` — spesielt tilgangsstyring, statusregler og eksport. UI-komponenter testes manuelt frem til pilot; ikke skriv komponenttester uten at det er avtalt.
 
+## Arbeidsflyt
+
+**Milepæl-loopen** — hver milepæl går gjennom disse stegene i rekkefølge:
+kode → `npm test` + `npm run lint` + `npm run build` → `reviewer`-agent → manuell
+verifisering i nettleser → godkjenning fra bruker → commit.
+
+Nettleser-steget er ikke valgfritt på UI-milepæler: grønne tester dekker kun
+`src/lib/`, så UI-en er uverifisert til noen har åpnet den. Be eksplisitt om
+denne bekreftelsen før du foreslår commit.
+
 ## Ting Claude IKKE skal gjøre
 
 - **Aldri committe eller pushe uten godkjenning.** Foreslå commit-melding, vent på ja.
-- **Aldri kjøre databasemigrasjoner eller endre RLS-policyer uten å vise SQL-en først.** Tilgangsstyring er prosjektets største risiko — feil her lekker data mellom team.
+- **Aldri kjøre databasemigrasjoner eller endre RLS-policyer uten å vise SQL-en først.** Tilgangsstyring er prosjektets største risiko — feil her lekker data mellom team. `supabase db push` og typegen kjøres av brukeren selv — Claude skriver migrasjonsfilene, brukeren kjører dem.
 - **Aldri lese eller skrive `.env*`-filer** eller håndtere API-nøkler. Be brukeren legge inn verdier selv.
 - **Aldri installere nye avhengigheter uten begrunnelse og godkjenning.**
 - **Aldri kopiere design, grafikk eller tekst fra Monday.com.** Konsepter (boards, statuser) er lov; kopiering er det ikke (Krav.MD §5).
@@ -64,3 +74,4 @@ Vitest på forretningslogikk i `src/lib/` — spesielt tilgangsstyring, statusre
 - **Explore-subagent:** brede søk gjennom mye kode («hvor håndteres X?»). Søket skjer i subagentens kontekst; bare konklusjonen kommer tilbake.
 - **`reviewer`** (`.claude/agents/reviewer.md`): ser på diffen med friske øyne før commit — bugs, sikkerhet/RLS, glemt opprydding. Bruk den før hver commit av betydning.
 - **`vibe-coach`** (`.claude/agents/coach.md`, speiler `coach.MD` i roten): coacher brukerens arbeidsflyt med Claude Code (promptkvalitet, plan mode, verifisering). Kjøres ved naturlige sjekkpunkter eller når brukeren sier «coach» / «feedback på arbeidsflyt». Skal aldri implementere eller reviewe kode; fører egne notater i `.claude/coach-notes.md`. Hvis `coach.MD` endres, kopier den til `.claude/agents/coach.md` så de holdes i synk.
+- **`/handoff`** (`.claude/skills/handoff/SKILL.md`): skriver `.claude/handoff.md` ved øktslutt. `/handoff start` plukker den opp i ny økt etter `/clear`.

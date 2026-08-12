@@ -7,6 +7,7 @@
 import type { CellValue } from "@/lib/cells/cell-value";
 import { comparePositions } from "@/lib/ordering/position";
 import { courseProgress, type CourseProgress } from "@/lib/points/course-progress";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import type { ColumnSettings } from "@/lib/types";
 
@@ -56,10 +57,36 @@ export async function getWorkspacesWithCourses(): Promise<WorkspaceWithCourses[]
       .from("boards")
       .select("id, workspace_id, name, archived_at, position")
       .is("deleted_at", null),
-    supabase.from("columns").select("id, board_id, settings").is("deleted_at", null),
-    supabase.from("column_labels").select("id, board_id, progress"),
-    supabase.from("items").select("id, board_id").is("deleted_at", null),
-    supabase.from("cell_values").select("board_id, item_id, column_id, value"),
+    // These four span EVERY visible board and grow without bound, so they must
+    // page past PostgREST's silent 1000-row cap (stable order() is required
+    // for range() paging to neither skip nor duplicate rows).
+    fetchAll((from, to) =>
+      supabase
+        .from("columns")
+        .select("id, board_id, settings")
+        .is("deleted_at", null)
+        .order("id")
+        .range(from, to),
+    ),
+    fetchAll((from, to) =>
+      supabase.from("column_labels").select("id, board_id, progress").order("id").range(from, to),
+    ),
+    fetchAll((from, to) =>
+      supabase
+        .from("items")
+        .select("id, board_id")
+        .is("deleted_at", null)
+        .order("id")
+        .range(from, to),
+    ),
+    fetchAll((from, to) =>
+      supabase
+        .from("cell_values")
+        .select("board_id, item_id, column_id, value")
+        .order("item_id")
+        .order("column_id")
+        .range(from, to),
+    ),
   ]);
   const firstError =
     profileRes.error ??

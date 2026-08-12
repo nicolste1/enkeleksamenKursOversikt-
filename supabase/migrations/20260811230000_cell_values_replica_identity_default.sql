@@ -1,0 +1,16 @@
+-- M5 realtime review finding: Supabase Realtime does NOT apply RLS to DELETE
+-- events — the row is already gone, so policies cannot be checked, and the
+-- old record is broadcast to every subscriber of the table. With replica
+-- identity full (set in 20260810120200_realtime.sql on the belief that it
+-- scoped DELETE events to the right board), every hard DELETE of a cell value
+-- would ship the complete old row — value JSON included — to ANY authenticated
+-- realtime subscriber regardless of board access. That is the cross-team data
+-- leak this project treats as its top risk.
+--
+-- Revert to the default (primary key) replica identity: DELETE old-records
+-- then carry only (item_id, column_id), leaking nothing beyond opaque uuids.
+-- Cost: cell hard-deletes no longer stream to the filtered board channel.
+-- The app only ever upserts cell values (hard deletes happen solely via
+-- cascade when purging), so nothing user-visible is lost; a reconnect or
+-- navigation refresh heals the view after a purge.
+alter table public.cell_values replica identity default;
