@@ -5,6 +5,7 @@ import { BoardHeader } from "@/components/board/BoardHeader";
 import { BoardProvider } from "@/components/board/board-store";
 import { BoardTable } from "@/components/board/BoardTable";
 import { getBoardData } from "@/lib/boards/queries";
+import { getSavedViews } from "@/lib/views/queries";
 
 // Board page (M4: editable). The Server Component fetches the full read
 // model; the client-side store owns it from there with optimistic updates.
@@ -15,7 +16,10 @@ export default async function BoardPage({
   params: Promise<{ boardId: string }>;
 }) {
   const { boardId } = await params;
-  const board = await getBoardData(boardId);
+  const [board, savedViews] = await Promise.all([
+    getBoardData(boardId),
+    getSavedViews(boardId),
+  ]);
   if (!board) notFound();
 
   return (
@@ -34,7 +38,7 @@ export default async function BoardPage({
             <BoardHeader />
           </div>
         </div>
-        <BoardTable />
+        <BoardTable savedViews={savedViews} />
       </div>
     </BoardProvider>
   );

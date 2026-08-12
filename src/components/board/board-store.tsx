@@ -34,7 +34,8 @@ import {
   type BoardState,
 } from "@/lib/boards/reducer";
 import { isValidValue, type CellValue } from "@/lib/cells/cell-value";
-import { upsertCellValue } from "@/lib/cells/mutations";
+import { bulkSetPersonCells, upsertCellValue } from "@/lib/cells/mutations";
+import { itemsMissingPersonValue } from "@/lib/filters/board-view";
 import * as columnsMutations from "@/lib/columns/mutations";
 import * as functionsMutations from "@/lib/functions/mutations";
 import * as groupsMutations from "@/lib/groups/mutations";
@@ -92,6 +93,11 @@ export interface BoardStore {
   addMember: (userId: string, role: BoardRole) => void;
   setMemberRole: (userId: string, role: BoardRole) => void;
   removeMember: (userId: string) => void;
+
+  /** Assign one editor to the course (F13): fills EMPTY «Redigeringsansvarlig»
+   *  cells (per-row choices are kept, FR10) and is remembered as the default
+   *  for new rows. null clears the default without touching any cells. */
+  assignCourseEditor: (userId: string | null) => void;
 
   archive: () => void;
   reopen: () => void;
@@ -195,6 +201,7 @@ export function BoardProvider({
         addMember,
         setMemberRole,
         removeMember,
+        assignCourseEditor,
         archive,
         reopen,
       };
@@ -283,22 +290,41 @@ export function BoardProvider({
       const group = state.groups.find((g) => g.id === groupId);
       if (!group) return;
       const last = group.items.at(-1)?.position ?? null;
+      // Person columns with a course default (e.g. «Sett redigerer», F13)
+      // pre-fill their cell on every new row.
+      const defaultedColumns = state.columns.filter(
+        (c) => c.type === "person" && typeof c.settings.defaultUserId === "string",
+      );
+      const cells: Record<string, CellValue> = {};
+      for (const column of defaultedColumns) {
+        cells[column.id] = { userId: column.settings.defaultUserId as string };
+      }
       const item: BoardItem = {
         id: crypto.randomUUID(),
         name: trimmed,
         position: positionBetween(last, null),
-        cells: {},
+        cells,
       };
-      run({ type: "addItem", groupId, item }, () =>
-        itemsMutations.insertItem(supabase, {
+      run({ type: "addItem", groupId, item }, async () => {
+        // The item row must exist before its cells (FK).
+        await itemsMutations.insertItem(supabase, {
           id: item.id,
           boardId,
           groupId,
           name: item.name,
           position: item.position,
           userId: state.myUserId,
-        }),
-      );
+        });
+        for (const column of defaultedColumns) {
+          await upsertCellValue(supabase, {
+            boardId,
+            itemId: item.id,
+            columnId: column.id,
+            value: cells[column.id],
+            userId: state.myUserId,
+          });
+        }
+      });
     }
 
     function renameItem(itemId: string, name: string) {
@@ -640,6 +666,35 @@ export function BoardProvider({
       if (!can(state.myRole, "manageMembers") || state.archivedAt !== null) return;
       run({ type: "removeMember", userId }, () =>
         membersMutations.removeBoardMember(supabase, { boardId, userId }),
+      );
+    }
+
+    function assignCourseEditor(userId: string | null) {
+      // Column settings writes need manageColumns (admin+medlem — matches the
+      // columns RLS policy), which also covers the cell writes below.
+      if (!can(state.myRole, "manageColumns") || state.archivedAt !== null) return;
+      const column = state.columns.find(
+        (c) => c.settings.role === "editResponsible",
+      );
+      if (!column) return;
+      // Remember (or clear) the default applied to new rows.
+      patchSettings(column.id, { defaultUserId: userId ?? undefined });
+      if (userId === null) return;
+      // Fill only rows without an editor — per-row choices stand (FR10).
+      const itemIds = itemsMissingPersonValue(state.groups, column.id);
+      if (itemIds.length === 0) return;
+      const value: CellValue = { userId };
+      for (const itemId of itemIds) {
+        dispatch({ type: "setCell", itemId, columnId: column.id, value });
+      }
+      run(null, () =>
+        bulkSetPersonCells(supabase, {
+          boardId,
+          columnId: column.id,
+          itemIds,
+          userId,
+          updatedBy: state.myUserId,
+        }),
       );
     }
 

@@ -82,9 +82,18 @@ describe("default course template", () => {
   it("models «Klar til redigering» as a Ja/Nei signal outside the points model (FR9)", () => {
     const ktr = byTitle("Klar til redigering");
     expect(ktr?.type).toBe("label");
-    expect(ktr?.role).toBeUndefined();
+    // readyForEdit identifies the column across boards (F13) — it still earns
+    // nothing (no pointWeight, and readyForEdit is not a step role).
+    expect(ktr?.role).toBe("readyForEdit");
     expect(ktr?.pointWeight).toBeUndefined();
     expect(ktr?.labels?.map((l) => l.title)).toEqual(["Ja", "Nei", "Ikke behov"]);
+  });
+
+  it("tags the two person columns with distinct roles (F13/FR10)", () => {
+    // Exact roles guard against title-prefix confusion: «Ansvarlig» must never
+    // match «Redigeringsansvarlig» — identification is by role, not title (F7).
+    expect(byTitle("Ansvarlig")?.role).toBe("responsible");
+    expect(byTitle("Redigeringsansvarlig")?.role).toBe("editResponsible");
   });
 
   it("uses valid hex colors everywhere", () => {

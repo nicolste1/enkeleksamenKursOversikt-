@@ -45,6 +45,7 @@ Internt verktøy for kursproduksjon og daglig drift i enkeleksamen, som erstatte
 | F10 | Endringer fra andre brukere vises uten at man må laste siden på nytt (sanntid). |
 | F11 | Alle kurs kan eksporteres til CSV/Excel. |
 | F12 | *(Utsatt — spesifiseres senere)* Automatiseringer. Behovet er ikke avklart ennå; designes ikke i v1, men datamodellen skal ikke stenge for det. |
+| F13 | **Filtrering og lagrede visninger:** Tabellen kan filtreres per kolonne (felt → operator *is*/*is not* → verdi, f.eks. status «Ferdig» eller «Nei»); flere filtre kombineres med And/Or og kan grupperes («+ New group»). En filterkombinasjon kan lagres som navngitt view. Boardet kan i tillegg filtreres/grupperes etter person. Egen tverrkurs-visning **«Mine leksjoner»** viser alle leksjoner brukeren står som Redigeringsansvarlig for på tvers av kursene sine, forhåndsfiltrert på «Klar til redigering» = «Ja» — redigerer-arbeidsflyten (redigeringsansvar i mange kurs) uten å åpne hvert board. |
 
 ## 4. Ikke-funksjonelle krav
 

@@ -1,36 +1,35 @@
-# Handoff — 2026-08-11 — neste: M5 Sanntid (F10)
+# Handoff — 2026-08-12 — neste: M6 Filtrering + «Mine leksjoner» (F13)
 
 ## Tilstand
-Siste commit: 7304cb1 «Add Notion-inspired theme, sidebar and progress-rich UI (M4.5)». Pushet.
-Ucommittet: CLAUDE.md (arbeidsflyt-seksjon + /handoff-registrering), usporet: .claude/skills/ og .claude/coach-notes.md — ta dem med i M5-committen.
-Verifisert: M3–M4.5 i nettleser av Nicolai (inkl. Monday-paritet: «Fullført arbeid» reproduserer eksporttallene). 73/73 tester, lint og build grønne på HEAD.
-IKKE verifisert: leser-rolle og kolonnefokus med en ANNEN konto (praktisk RLS-test — trenger kollega/testkonto, står åpen siden M3).
+Siste commit: b20ce12 «Add realtime board sync with connection indicator (M5)». Pushet.
+Ucommittet: Krav.MD (ny F13) og .claude/handoff.md — ta begge med i M6-committen.
+Verifisert: M5 i nettleser av Nicolai (to vinduer: celle/rad/gruppe/kolonne/label/funksjon <1 s, N3-konvergens, reconnect-catch-up, sidemeny etter arkivering). Migrasjonen 20260811230000 (replica identity default) er KJØRT i skyen. 122 tester + lint + build grønne på HEAD.
+IKKE verifisert: negativ RLS-test (konto uten board-tilgang som realtime-subscriber får ingen events) — åpen siden M3, trenger testkonto/kollega.
 
 ## Neste oppgave
-Mål: endringer fra andre brukere synes på boardet uten reload (F10).
+Mål: en redigerer med ansvar for leksjoner i ~10 kurs ser dem i ÉN visning, og boards kan filtreres med lagrbare filterkombinasjoner (nyskrevet F13, prioritert foran rapporten).
 Ferdig når:
-- To nettleservinduer: endring i det ene synes i det andre <1 s (celle, rad, gruppe, kolonne)
-- Samtidig redigering av samme celle konvergerer (LWW på cell_values.updated_at, N3)
-- Konto uten board-tilgang får ingen events som subscriber
-- Tilkoblingsindikator i UI; test+lint+build grønne
-Verifisering: npm run dev + to vinduer (gjerne ett inkognito); plan-avsnittet «M5 — Sanntid» har detaljene.
+- Filtermodell (felt → is/is not → verdi; And/Or + grupper) evaluerer riktig — unit-testet i src/lib/filters/
+- Boardet kan filtreres og grupperes etter person (Ansvarlig)
+- Filterkombinasjon kan lagres som navngitt view (ny tabell saved_views, RLS: kun egne) og overlever reload
+- «Mine leksjoner»-side på tvers av kurs, forhåndsfiltrert Ansvarlig = meg og «Klar til redigering» = «Ja»
+Verifisering: plan-avsnittet «M6 — Filtrering, lagrede views og "Mine leksjoner"»; scenario med ansvar i 2+ kurs mot manuelt fasitsett.
 
 ## Det du ikke finner andre steder
-- board-store.tsx er BYGD for M5: reducer-actions (setCell/patchItem/addGroup/…) mapper 1:1 på realtime-events — mat reduceren direkte. IKKE bruk router.refresh() som sync-mekanisme: ny `initial`-prop trigger render-fase-reset av HELE staten (bevisst feilhåndtering, ødeleggende som event-vei).
-- Egne optimistiske skriv kommer i retur som events på kanalen — reducer-patchene er idempotente, så ekko er ufarlig, men vurder å sammenligne updated_at før dispatch for å slippe unødige re-renders.
-- Reviewer anbefalte å trekke reducer-logikken ut til src/lib/ og teste den FØR realtime kobles på — den er forretningslogikk uten tester i dag.
-- Migrasjonen 20260811190000_label_progress.sql ble redigert ETTER at den var kjørt i skyen (ekstra backfill-UPDATEs har aldri kjørt der — ufarlig, seed/app setter progress eksplisitt). Ikke gjenta mønsteret: endringer i anvendt migrasjon = ny migrasjonsfil.
-- Realtime-publikasjonen finnes allerede (0003_realtime fra M1) — ingen ny SQL forventes for M5.
-- Arkivering oppdaterer ikke sidemenyen før neste navigasjon (ingen refresh ved suksess) — kjent småting, kan løses gratis i M5 når events kommer.
-- Kjente aksepterte hull (fra M4-review): endret poengsats på innholdstype-label rekalkulerer ikke eksisterende «Arbeid»-celler før noe på raden endres; arkiv-tidsstempel skrives optimistisk fra klientklokka.
-- Grupper uten farge får stabil farge fra navnet (colorFor i label-colors.ts) — groups.color i DB er fortsatt null overalt; farge-velger-UI er bevisst ikke bygget.
+- **PostgREST kapper stille på 1000 rader** — funnet i denne økta (demo-boardets redigerte celler «forsvant»). All ubegrenset lesing MÅ gjennom fetchAll() (src/lib/supabase/fetch-all.ts) med stabil .order(); «Mine leksjoner» leser på tvers av alle kurs og treffer taket umiddelbart.
+- **Realtime RLS-sjekker IKKE DELETE-events** (bekreftet mot Supabase-docs) — de kringkastes til alle abonnenter. Derfor aldri `replica identity full` på innholdstabeller; kommentaren i 20260810120200_realtime.sql påstår det motsatte og er feil (rettet i 20260811230000, ikke gjenta mønsteret). DELETE-events kan heller ikke filtreres server-side → board-scoping skjer klientside i eventToAction.
+- **«Klar til redigering» og «Ansvarlig» har ingen settings.role** — identifiseres kun på tittel. Tverrkurs-filteret trenger robust identifikasjon: avklar i plan mode (ny role i malen + backfill, eller tittelmatch).
+- «Mine leksjoner» uten realtime i v1 er et bevisst forslag (board-channel er én kanal per board — ikke abonner på N kurs fra én side).
+- Ekko-undertrykking i realtime er bevisst utelatt: å droppe eget ekko divergerer når eget skriv committet før en annens. Reducer-no-ops returnerer samme state-referanse (viktig for ufiltrerte DELETE-lyttere) — behold mønsteret i nye actions.
+- Hydration-warning med `fdprocessedid` i konsollen er en nettleserutvidelse hos Nicolai, ikke appen.
 
 ## Pekere
-- Plan: ~/.claude/plans/ok-vi-skal-n-stateful-donut.md, avsnitt «M5 — Sanntid (F10)» (+ «Realtime» under Nøkkelbeslutninger)
-- Krav.MD: F10, N3 (+ §8 FR2 for poengmodellen slik den faktisk er)
+- Plan: ~/.claude/plans/ok-vi-skal-n-stateful-donut.md, avsnitt «M6 — Filtrering, lagrede views og "Mine leksjoner"» (rapporten er nå M7)
+- Krav.MD: F13 (ny), FR9 (klar-signalet), F5 (kolonnene), N3
 - Nøkkelfiler:
-  - src/components/board/board-store.tsx — reducer + optimistiske mutasjoner; M5 kobler seg på her
-  - src/lib/realtime/ — finnes ikke ennå; planen sier board-channel.ts her
-  - src/components/board/board-points.ts — poeng-rollups (celle/gruppe); gjenbrukt av kurskortene via lib/points/course-progress.ts
-  - supabase/migrations/20260810120200_realtime.sql — publikasjonen som allerede er live
-  - .claude/coach-notes.md — coachens notater; neste økt skal fortsette «verifisert i nettleser: …»-vanen
+  - src/lib/filters/ — finnes ikke ennå; filtermodellen skal hit
+  - src/lib/supabase/fetch-all.ts — obligatorisk for tverrkurs-lesing
+  - src/lib/boards/reducer.ts + src/lib/realtime/board-channel.ts — M5-mønsteret (rene, testede moduler)
+  - src/lib/templates/default-course-template.ts:130 — «Klar til redigering» uten role
+  - src/components/board/BoardTable.tsx — filterrad-UI-et kobles på her
+  - .claude/coach-notes.md — coachens notater

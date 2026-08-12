@@ -15,10 +15,13 @@ export type ColumnType =
   | "label";
 
 /**
- * Semantic role a column plays in the points model (FR1–FR2). Stored in data,
- * not inferred from the Norwegian title, since users can rename columns (F7).
+ * Semantic role a column plays in the points model (FR1–FR2) or in workflows
+ * that must find a column across boards (F13). Stored in data, not inferred
+ * from the Norwegian title, since users can rename columns (F7).
  * questionCount/questionRate drive the per-question estimate used for
  * «Repetisjonsoppgaver» (FR1): estimate = question count × rate per question.
+ * responsible = «Ansvarlig» (person), readyForEdit = «Klar til redigering»
+ * (label, FR9), editResponsible = «Redigeringsansvarlig» (person, FR10).
  */
 export type ColumnRole =
   | "contentType"
@@ -26,7 +29,10 @@ export type ColumnRole =
   | "earned"
   | "step"
   | "questionCount"
-  | "questionRate";
+  | "questionRate"
+  | "responsible"
+  | "readyForEdit"
+  | "editResponsible";
 
 /** Board-level column configuration stored in columns.settings (JSONB). */
 export interface ColumnSettings {
@@ -38,4 +44,6 @@ export interface ColumnSettings {
   pointWeight?: number;
   /** questionRate columns: rate per question when no label is set (FR1). */
   defaultPointsPerQuestion?: number;
+  /** Person columns: default assignee for new rows («Sett redigerer», F13). */
+  defaultUserId?: string;
 }

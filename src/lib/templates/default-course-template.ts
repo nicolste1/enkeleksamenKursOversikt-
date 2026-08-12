@@ -111,11 +111,12 @@ export const DEFAULT_TEMPLATE_COLUMNS: TemplateColumn[] = [
     ],
   },
   { title: "Lenke", type: "link" },
-  { title: "Ansvarlig", type: "person" },
+  { title: "Ansvarlig", type: "person", role: "responsible" },
   // FR10: who edits varies per video, so responsibility is set per row next to «Ansvarlig».
   {
     title: "Redigeringsansvarlig",
     type: "person",
+    role: "editResponsible",
     visibleToFunctions: ["redigerer", "opplaster", "kvalitetssjekker"],
   },
   statusStep("Manus", ["manusforfatter"], 0.4),
@@ -129,6 +130,7 @@ export const DEFAULT_TEMPLATE_COLUMNS: TemplateColumn[] = [
   {
     title: "Klar til redigering",
     type: "label",
+    role: "readyForEdit",
     visibleToFunctions: ["innspiller", "kameraoperator", "redigerer"],
     labels: [
       { title: "Ja", color: "#2e7d32" },

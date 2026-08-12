@@ -8,6 +8,7 @@ import { useState } from "react";
 
 import { useBoard } from "@/components/board/board-store";
 import { BoardSettingsDialog } from "@/components/board/BoardSettingsDialog";
+import { SetCourseEditorDialog } from "@/components/board/SetCourseEditorDialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,10 +28,15 @@ export function BoardHeader() {
   const store = useBoard();
   const { state } = store;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   const archived = state.archivedAt !== null;
-  const showMenu = store.allows("manageMembers") || store.allows("manageBoard");
+  const canSetEditor =
+    store.allows("manageColumns") &&
+    state.columns.some((c) => c.settings.role === "editResponsible");
+  const showMenu =
+    store.allows("manageMembers") || store.allows("manageBoard") || canSetEditor;
 
   return (
     <div className="flex items-center justify-between gap-3">
@@ -67,6 +73,11 @@ export function BoardHeader() {
               <MoreHorizontalIcon />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {canSetEditor && (
+                <DropdownMenuItem onClick={() => setEditorOpen(true)}>
+                  Sett redigerer …
+                </DropdownMenuItem>
+              )}
               {store.allows("manageMembers") && (
                 <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
                   Funksjoner og medlemmer …
@@ -86,6 +97,7 @@ export function BoardHeader() {
       </div>
 
       <BoardSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SetCourseEditorDialog open={editorOpen} onOpenChange={setEditorOpen} />
 
       <Dialog open={confirmArchive} onOpenChange={setConfirmArchive}>
         <DialogContent>

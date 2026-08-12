@@ -63,6 +63,7 @@ export function BoardGroup({
   pointsContext,
   collapsed,
   onToggle,
+  hideAddItem = false,
 }: {
   group: BoardGroupData;
   columns: BoardColumn[];
@@ -71,6 +72,9 @@ export function BoardGroup({
   pointsContext: PointsContext;
   collapsed: boolean;
   onToggle: () => void;
+  /** True while a filter/person grouping is active: a freshly added row could
+   *  be hidden immediately («raden forsvant»), so adding is paused (F13). */
+  hideAddItem?: boolean;
 }) {
   const { allows, renameGroup, moveGroup, deleteGroup } = useBoard();
   const editable = allows("editItems");
@@ -180,7 +184,9 @@ export function BoardGroup({
           </td>
         </tr>
       )}
-      {!collapsed && editable && <AddItemRow groupId={group.id} colSpan={colSpan} />}
+      {!collapsed && editable && !hideAddItem && (
+        <AddItemRow groupId={group.id} colSpan={colSpan} />
+      )}
     </tbody>
   );
 }

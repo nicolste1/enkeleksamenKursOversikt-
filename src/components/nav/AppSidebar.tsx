@@ -39,6 +39,12 @@ export function AppSidebar({
         <Link href="/" className={linkClass(pathname === "/")}>
           Hjem
         </Link>
+        <Link
+          href="/mine-leksjoner"
+          className={linkClass(pathname === "/mine-leksjoner")}
+        >
+          Mine leksjoner
+        </Link>
 
         {workspaces.map((ws) => (
           <div key={ws.id} className="mt-4">

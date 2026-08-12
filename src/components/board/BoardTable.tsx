@@ -13,12 +13,30 @@ import type { PointsContext } from "@/components/board/board-points";
 import { useBoard } from "@/components/board/board-store";
 import { BoardGroup } from "@/components/board/BoardGroup";
 import { ColumnHeaderMenu } from "@/components/board/ColumnHeaderMenu";
+import {
+  EMPTY_VIEW_STATE,
+  FilterToolbar,
+  type BoardViewState,
+} from "@/components/board/FilterToolbar";
+import { PersonGroupSection } from "@/components/board/PersonGroupSection";
 import { Button } from "@/components/ui/button";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { visibleColumns } from "@/lib/access/column-visibility";
+import {
+  applyFilterToGroups,
+  groupItemsByPerson,
+} from "@/lib/filters/board-view";
+import type { FilterContext } from "@/lib/filters/evaluate";
+import {
+  EMPTY_FILTER,
+  hasConditions,
+  isValidFilterDefinition,
+} from "@/lib/filters/filter-model";
+import type { SavedView } from "@/lib/views/queries";
 
 // Stable fallback references (useLocalStorage relies on constant fallbacks).
 const NO_COLLAPSED: Record<string, boolean> = {};
+const NO_VIEWS: SavedView[] = [];
 
 function AddGroupButton() {
   const { addGroup } = useBoard();
@@ -45,7 +63,7 @@ function AddGroupButton() {
   );
 }
 
-export function BoardTable() {
+export function BoardTable({ savedViews = NO_VIEWS }: { savedViews?: SavedView[] }) {
   const store = useBoard();
   const { state } = store;
 
@@ -57,6 +75,15 @@ export function BoardTable() {
     `board:${state.id}:collapsedGroups`,
     NO_COLLAPSED,
   );
+  const [storedView, setViewState] = useLocalStorage(
+    `board:${state.id}:view`,
+    EMPTY_VIEW_STATE,
+  );
+  // useLocalStorage only guards typeof — validate the untrusted definition
+  // properly so a stale/corrupt stored filter cannot crash the evaluator.
+  const viewState: BoardViewState = isValidFilterDefinition(storedView.definition)
+    ? storedView
+    : { ...storedView, definition: EMPTY_FILTER, activeViewId: null };
 
   const toggleGroup = (groupId: string) =>
     setCollapsed({ ...collapsed, [groupId]: !collapsed[groupId] });
@@ -79,6 +106,31 @@ export function BoardTable() {
 
   const canManageColumns = store.allows("manageColumns");
 
+  // Filtering and person grouping are render-time derivations over reducer
+  // state — realtime events re-derive automatically. Rollups downstream
+  // (BoardGroup/PersonGroupSection) compute from what they receive, so they
+  // reflect the filtered rows without further wiring.
+  const filterContext: FilterContext = {
+    columnTypeById: Object.fromEntries(state.columns.map((c) => [c.id, c.type])),
+  };
+  const filterActive = hasConditions(viewState.definition);
+  const filteredGroups = applyFilterToGroups(
+    state.groups,
+    viewState.definition,
+    filterContext,
+  );
+  const personColumn =
+    state.columns.find((c) => c.settings.role === "responsible") ??
+    state.columns.find((c) => c.type === "person") ??
+    null;
+  const personBuckets =
+    viewState.groupByPerson && personColumn
+      ? groupItemsByPerson(filteredGroups, personColumn.id, state.peopleById)
+      : null;
+  // Adding rows while a filter hides them (or into synthesized person
+  // buckets) reads as «raden forsvant» — hide the add affordances instead.
+  const structureEditable = !filterActive && personBuckets === null;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {state.error && (
@@ -90,16 +142,24 @@ export function BoardTable() {
         </div>
       )}
 
-      {hasFunctions && (
-        <div className="flex items-center gap-3">
-          <Button size="sm" variant="outline" onClick={() => setShowAll(!showAll)}>
-            {effectiveShowAll ? "Vis mine kolonner" : "Vis alle kolonner"}
-          </Button>
-          <span className="text-muted-foreground text-xs">
-            {columns.length} av {state.columns.length} kolonner
-          </span>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-3">
+        <FilterToolbar
+          viewState={viewState}
+          setViewState={setViewState}
+          savedViews={savedViews}
+          canGroupByPerson={personColumn !== null}
+        />
+        {hasFunctions && (
+          <div className="flex items-center gap-3">
+            <Button size="sm" variant="outline" onClick={() => setShowAll(!showAll)}>
+              {effectiveShowAll ? "Vis mine kolonner" : "Vis alle kolonner"}
+            </Button>
+            <span className="text-muted-foreground text-xs">
+              {columns.length} av {state.columns.length} kolonner
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Fills the remaining viewport height (flex-1) instead of a fixed max
           height, so the lesson list runs all the way to the bottom edge. */}
@@ -132,24 +192,45 @@ export function BoardTable() {
               )}
             </tr>
           </thead>
-          {state.groups.map((group) => (
-            <BoardGroup
-              key={group.id}
-              group={group}
-              columns={columns}
-              colSpan={columns.length + (canManageColumns ? 2 : 1)}
-              pointsContext={pointsContext}
-              collapsed={collapsed[group.id] ?? false}
-              onToggle={() => toggleGroup(group.id)}
-            />
-          ))}
+          {personBuckets !== null
+            ? personBuckets.map((bucket) => (
+                <PersonGroupSection
+                  key={bucket.userId ?? "unassigned"}
+                  bucket={bucket}
+                  columns={columns}
+                  colSpan={columns.length + (canManageColumns ? 2 : 1)}
+                  pointsContext={pointsContext}
+                />
+              ))
+            : filteredGroups.map((group) => (
+                <BoardGroup
+                  key={group.id}
+                  group={group}
+                  columns={columns}
+                  colSpan={columns.length + (canManageColumns ? 2 : 1)}
+                  pointsContext={pointsContext}
+                  collapsed={collapsed[group.id] ?? false}
+                  onToggle={() => toggleGroup(group.id)}
+                  hideAddItem={!structureEditable}
+                />
+              ))}
         </table>
         {state.groups.length === 0 && (
           <p className="text-muted-foreground px-4 py-6 text-sm">
             Kurset har ingen delkapitler ennå.
           </p>
         )}
-        {store.allows("editItems") && <AddGroupButton />}
+        {state.groups.length > 0 &&
+          (personBuckets !== null
+            ? personBuckets.length === 0
+            : filteredGroups.length === 0) && (
+            <p className="text-muted-foreground px-4 py-6 text-sm">
+              {filterActive
+                ? "Ingen leksjoner matcher filteret."
+                : "Ingen leksjoner å gruppere."}
+            </p>
+          )}
+        {structureEditable && store.allows("editItems") && <AddGroupButton />}
       </div>
     </div>
   );
