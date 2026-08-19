@@ -23,6 +23,7 @@ Internt prosjektverktøy for kursproduksjon i enkeleksamen — erstatter Monday.
 | `npm test` | Vitest (kjør én gang) |
 | `npm run test:watch` | Vitest i watch-modus |
 | `npm run lint` | ESLint |
+| `npm run db:typegen` | Regenererer `database.types.ts` fra linket Supabase-prosjekt som UTF-8 (bruk ALLTID denne — aldri `supabase gen types ... > fil`, som gir UTF-16 på Windows) |
 
 ## Mappestruktur
 

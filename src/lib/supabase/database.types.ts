@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -150,6 +150,44 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      board_snapshots: {
+        Row: {
+          board_id: string
+          created_at: string
+          done_count: number
+          earned_points: number
+          estimated_points: number
+          item_count: number
+          snapshot_date: string
+        }
+        Insert: {
+          board_id: string
+          created_at?: string
+          done_count: number
+          earned_points: number
+          estimated_points: number
+          item_count: number
+          snapshot_date: string
+        }
+        Update: {
+          board_id?: string
+          created_at?: string
+          done_count?: number
+          earned_points?: number
+          estimated_points?: number
+          item_count?: number
+          snapshot_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "board_snapshots_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
             referencedColumns: ["id"]
           },
         ]
@@ -413,6 +451,58 @@ export type Database = {
           },
         ]
       }
+      item_snapshots: {
+        Row: {
+          board_id: string
+          created_at: string
+          earned_fraction: number
+          estimated_points: number
+          item_id: string
+          responsible_id: string | null
+          snapshot_date: string
+        }
+        Insert: {
+          board_id: string
+          created_at?: string
+          earned_fraction: number
+          estimated_points: number
+          item_id: string
+          responsible_id?: string | null
+          snapshot_date: string
+        }
+        Update: {
+          board_id?: string
+          created_at?: string
+          earned_fraction?: number
+          estimated_points?: number
+          item_id?: string
+          responsible_id?: string | null
+          snapshot_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_snapshots_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_snapshots_item_id_board_id_fkey"
+            columns: ["item_id", "board_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id", "board_id"]
+          },
+          {
+            foreignKeyName: "item_snapshots_responsible_id_fkey"
+            columns: ["responsible_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       items: {
         Row: {
           board_id: string
@@ -468,6 +558,48 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "groups"
             referencedColumns: ["id", "board_id"]
+          },
+        ]
+      }
+      person_snapshots: {
+        Row: {
+          active_items: number
+          board_id: string
+          created_at: string
+          delivered_points: number
+          snapshot_date: string
+          user_id: string
+        }
+        Insert: {
+          active_items: number
+          board_id: string
+          created_at?: string
+          delivered_points: number
+          snapshot_date: string
+          user_id: string
+        }
+        Update: {
+          active_items?: number
+          board_id?: string
+          created_at?: string
+          delivered_points?: number
+          snapshot_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_snapshots_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_snapshots_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
